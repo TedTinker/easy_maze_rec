@@ -30,7 +30,6 @@ parser.add_argument('--z_size',             type=int,   default = 8)
 parser.add_argument('--forward_sum_bayes',  type=bool,  default = True)
 parser.add_argument("--dkl_rate",           type=float, default = .00005)   # Scale bayesian dkl
 parser.add_argument('--forward_lr',         type=float, default = .01)
-parser.add_argument('--clone_lr',           type=float, default = .001)
 parser.add_argument('--actor_lr',           type=float, default = .01) 
 parser.add_argument('--critic_lr',          type=float, default = .01) 
 parser.add_argument('--alpha_lr',           type=float, default = .01) 
