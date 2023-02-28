@@ -3,7 +3,7 @@
 import argparse
 import os 
 
-if(os.getcwd().split("/")[-1] != "easy_maze"): os.chdir("easy_maze")
+if(os.getcwd().split("/")[-1] != "easy_maze_rec"): os.chdir("easy_maze_rec")
 print(os.getcwd())
 
 import torch
@@ -25,6 +25,8 @@ parser.add_argument('--wall_punishment',    type=int,   default = -1)
 
 # Module 
 parser.add_argument('--hidden',             type=int,   default = 16)
+parser.add_argument('--h_size',             type=int,   default = 16)
+parser.add_argument('--z_size',             type=int,   default = 8)
 parser.add_argument('--forward_sum_bayes',  type=bool,  default = True)
 parser.add_argument("--dkl_rate",           type=float, default = .00005)   # Scale bayesian dkl
 parser.add_argument('--forward_lr',         type=float, default = .01)
