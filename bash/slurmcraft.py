@@ -8,7 +8,7 @@ try:    args = parser.parse_args()
 except: args, _ = parser.parse_known_args()
 
 import os 
-try:    os.chdir("easy_maze/bash")
+try:    os.chdir("easy_maze_rec/bash")
 except: pass
 
 
@@ -49,7 +49,7 @@ if(args.post == "False"):
 ##SBATCH --constraint 32
 
 module load singularity
-singularity exec t_maze.sif python easy_maze/main.py --id ${{SLURM_ARRAY_TASK_ID}} --arg_title {} {}
+singularity exec t_maze.sif python easy_maze_rec/main.py --id ${{SLURM_ARRAY_TASK_ID}} --arg_title {} {}
     """.format(partition, args.arg_title, slurm_dict[args.arg_title])[1:])
         
         
@@ -68,7 +68,7 @@ else:
 ##SBATCH --constraint 32
 
 module load singularity
-singularity exec t_maze.sif python easy_maze/post_main.py --arg_title {} {}
+singularity exec t_maze.sif python easy_maze_rec/post_main.py --arg_title {} {}
 """.format(partition, args.arg_title, slurm_dict[args.arg_title])[1:])
 # %%
 

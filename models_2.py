@@ -26,7 +26,7 @@ class Forward(nn.Module):
         
         self.zp = nn.Linear(args.h_size,               args.z_size)
         self.zq = nn.Linear(args.h_size + obs_size,    args.z_size)
-        self.o  = nn.Linear(args.h_size + action_size, obs_size)
+        self.o  = nn.Linear(args.h_size,               obs_size)
         
     def zp_from_hq_tm1(self, hq_tm1):
         return(self.zp(hq_tm1))
@@ -41,8 +41,8 @@ class Forward(nn.Module):
         _, h_t = self.gru(z_t, hq_tm1)  
         return(h_t)
     
-    def forward(self, hq_tm1, a_t):
-        x = torch.cat([hq_tm1, a_t], -1) 
+    def forward(self, hq_tm1):
+        x = torch.cat([hq_tm1], -1) 
         return(self.o(x))
 
     
@@ -157,37 +157,6 @@ class Actor(nn.Module):
     
     
     
-    
-    
-class Summarizer(nn.Module):
-    
-    def __init__(self, args = default_args, bayes = False):
-        super(Summarizer, self).__init__()
-        
-        self.args = args
-        
-        self.bayes = bayes
-        if(bayes):
-            self.lstm = BayesianLSTM(
-                in_features = obs_size + action_size,
-                out_features = self.args.hidden)
-        else:
-            self.lstm = nn.LSTM(
-                input_size = obs_size + action_size,
-                hidden_size = self.args.hidden,
-                batch_first = True)
-        
-        self.lstm.apply(init_weights)
-        
-    def forward(self, obs, prev_action, hidden = None):
-        obs = obs.to(self.args.device) ; prev_action = prev_action.to(self.args.device)
-        x = torch.cat([obs, prev_action], -1)
-        if(self.bayes): inner_state, hidden = self.lstm(x, hidden, None)    
-        else:           inner_state, hidden = self.lstm(x, hidden)    
-        return(inner_state, hidden)
-    
-    
-    
 class Critic(nn.Module):
 
     def __init__(self, args = default_args):
@@ -195,18 +164,23 @@ class Critic(nn.Module):
         
         self.args = args
         
-        self.sum = Summarizer(self.args)
-                
+        self.lstm = nn.LSTM(
+            input_size = obs_size + action_size,
+            hidden_size = self.args.hidden,
+            batch_first = True)
+                        
         self.lin = nn.Sequential(
             nn.Linear(args.hidden + action_size, args.hidden),
             nn.LeakyReLU(),
             nn.Linear(args.hidden, 1))
 
+        self.lstm.apply(init_weights)
         self.lin.apply(init_weights)
         self.to(args.device)
 
     def forward(self, obs, prev_action, action, hidden = None):
-        inner_state, hidden = self.sum(obs, prev_action, hidden)
+        x = torch.cat([obs, prev_action], -1)
+        inner_state, hidden = self.lstm(x, hidden)    
         x = torch.cat((inner_state, action), dim=-1)
         x = self.lin(x).to("cpu")
         return(x, hidden)
@@ -223,7 +197,7 @@ if __name__ == "__main__":
     print("\n\n")
     print(forward)
     print()
-    print(torch_summary(forward, ((1,default_args.h_size), (1,action_size))))
+    print(torch_summary(forward, ((1,default_args.h_size))))
     
     
     

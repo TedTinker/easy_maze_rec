@@ -11,26 +11,27 @@ from agent import Agent
 
 
 
-def episode(agent, push = True, verbose = False):
+def episode(agent, push = True):
     done = False
     t_maze = T_Maze()
     steps = 0
-    if(verbose): print("\nSTART!\n")
     with torch.no_grad():
-        h = None ; a = torch.zeros((1,action_size))
+        hq = torch.zeros((1, 1, agent.args.h_size))
+        zp = torch.normal(0, 1, (1, 1, agent.args.z_size))
         while(done == False):
-            if(verbose): print(t_maze)
-            o = t_maze.obs()
-            if(verbose): print(o.shape, a.shape)
-            a, h = agent.act(o, a, h)
-            action = a.squeeze(0).tolist()
-            if(verbose): print(action)
-            r, spot_name, done = t_maze.action(action[0], action[1], verbose)
-            no = t_maze.obs()
             steps += 1
+            o = t_maze.obs() 
+            hp = agent.forward.h(z_t = zp, hq_tm1 = hq)
+            zq = agent.forward.zq_from_hq_t_and_o_t(hq, o.unsqueeze(0))
+            hq = agent.forward.h(zq, hq)
+            zp = agent.forward.zp_from_hq_tm1(hq)
+
+            a = agent.act(hp)
+            action = a.squeeze(0).tolist()
+            r, spot_name, done = t_maze.action(action[0], action[1])
+            no = t_maze.obs()
             if(steps >= agent.args.max_steps): done = True ; r = -1
             if(push): agent.memory.push(o, a, r, no, done, done, agent)
-    if(verbose): print(t_maze)
     return(r, spot_name)
 
 
