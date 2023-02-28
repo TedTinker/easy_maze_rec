@@ -53,7 +53,7 @@ def many_min_max(min_max_list):
 
 def plots(plot_dicts, min_max_dict):
     start_time = datetime.datetime.now()
-    fig, axs = plt.subplots(13, len(plot_dicts), figsize = (10*len(plot_dicts), 75))
+    fig, axs = plt.subplots(11, len(plot_dicts), figsize = (10*len(plot_dicts), 75))
                 
     for i, plot_dict in enumerate(plot_dicts):
     
@@ -99,28 +99,28 @@ def plots(plot_dicts, min_max_dict):
         
         
         # Losses
-        mse_dict = get_quantiles(plot_dict, "mse")
-        dkl_dict = get_quantiles(plot_dict, "dkl")
+        obs_dict = get_quantiles(plot_dict, "obs")
+        z_dict = get_quantiles(plot_dict, "z")
         alpha_dict = get_quantiles(plot_dict, "alpha")
         actor_dict = get_quantiles(plot_dict, "actor")
         crit1_dict = get_quantiles(plot_dict, "critic_1")
         crit2_dict = get_quantiles(plot_dict, "critic_2")
         
         ax = axs[3,i] if len(plot_dicts) > 1 else axs[3]
-        h1 = awesome_plot(ax, mse_dict, "green", "MSE")
-        ax.set_ylabel("MSE Loss")
+        h1 = awesome_plot(ax, obs_dict, "green", "OBS")
+        ax.set_ylabel("OBS Loss")
         ax2 = ax.twinx()
-        h2 = awesome_plot(ax2, dkl_dict, "red", "DKL")
-        ax2.set_ylabel("DKL Loss")
+        h2 = awesome_plot(ax2, z_dict, "red", "Z")
+        ax2.set_ylabel("Z Loss")
         ax.legend(handles = [h1, h2])
         ax.set_title(plot_dict["title"] + "\nForward Losses")
         
         ax = axs[4,i] if len(plot_dicts) > 1 else axs[4]
-        h1 = awesome_plot(ax, mse_dict, "green", "MSE", min_max_dict["mse"])
-        ax.set_ylabel("MSE Loss")
+        h1 = awesome_plot(ax, obs_dict, "green", "OBS", min_max_dict["obs"])
+        ax.set_ylabel("OBS Loss")
         ax2 = ax.twinx()
-        h2 = awesome_plot(ax2, dkl_dict, "red", "DKL", min_max_dict["dkl"])
-        ax2.set_ylabel("DKL Loss")
+        h2 = awesome_plot(ax2, z_dict, "red", "Z", min_max_dict["z"])
+        ax2.set_ylabel("Z Loss")
         ax.legend(handles = [h1, h2])
         ax.set_title(plot_dict["title"] + "\nForward Losses, shared min/max")
         
@@ -217,23 +217,6 @@ def plots(plot_dicts, min_max_dict):
         ax2.set_ylabel("Free")
         ax.legend(handles = handles)
         ax.set_title(plot_dict["title"] + "\nCuriosities, shared min/max")
-
-        
-        
-        # DKL-Guessing
-        guesser_dict = get_quantiles(plot_dict, "guesser")
-        
-        ax = axs[11,i] if len(plot_dicts) > 1 else axs[11]
-        awesome_plot(ax, guesser_dict, "green", "Loss")
-        ax.set_ylabel("Loss")
-        ax.set_title(plot_dict["title"] + "\nDKL Guesser Loss")
-        
-        ax = axs[12,i] if len(plot_dicts) > 1 else axs[12]
-        awesome_plot(ax, guesser_dict, "green", "Guesser Loss", min_max_dict["guesser"])
-        ax.set_ylabel("Loss")
-        ax.set_title(plot_dict["title"] + "\nDKL Guesser Loss, shared min/max")
-        
-        print(i, plot_dict["title"], duration(start_time))
 
     
     

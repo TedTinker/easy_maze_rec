@@ -11,7 +11,7 @@ import numpy as np
 from utils import default_args, dkl, weights
 from maze import action_size
 from buffer import RecurrentReplayBuffer, DKL_Buffer
-from models import Forward, DKL_Guesser, Actor, Critic
+from models import Forward, Actor, Critic
 
 
 
@@ -34,12 +34,6 @@ class Agent:
         
         self.forward = Forward(self.args)
         self.forward_opt = optim.Adam(self.forward.parameters(), lr=self.args.forward_lr, weight_decay=0)   
-        
-        self.forward_clone = Forward(self.args)
-        self.clone_opt = optim.Adam(self.forward_clone.parameters(), lr=self.args.clone_lr, weight_decay=0)
-        
-        self.dkl_guesser = DKL_Guesser(self.args)
-        self.dkl_guesser_opt = optim.Adam(self.dkl_guesser.parameters(), lr=self.args.dkl_guesser_lr, weight_decay=0)
                            
         self.actor = Actor(self.args)
         self.actor_opt = optim.Adam(self.actor.parameters(), lr=self.args.actor_lr, weight_decay=0)     
@@ -196,12 +190,11 @@ class Agent:
         
         obs_loss = obs_errors.sum().item()
         z_loss = z_errors.sum().item()
-        guesser_loss = 0
         if(alpha_loss != None): alpha_loss = alpha_loss.item()
         if(actor_loss != None): actor_loss = actor_loss.item()
         if(critic1_loss != None): critic1_loss = critic1_loss.item()
         if(critic2_loss != None): critic2_loss = critic2_loss.item()
-        losses = np.array([[obs_loss, z_loss, guesser_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]])
+        losses = np.array([[obs_loss, z_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]])
         
         return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy, dkl_change, naive_curiosity.sum().detach(), free_curiosity)
                      
