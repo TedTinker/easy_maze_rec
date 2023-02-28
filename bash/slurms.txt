@@ -1,0 +1,28 @@
+d   : 
+e   : --alpha None
+
+n   : --curiosity naive
+e_n : --alpha None --curiosity naive
+
+e_f   : --alpha None --curiosity free
+e_f_1 : --alpha None --curiosity free --free_eta .001
+e_f_2 : --alpha None --curiosity free --free_eta .005
+e_f_3 : --alpha None --curiosity free --free_eta .01
+e_f_4 : --alpha None --curiosity free --free_eta .05
+e_f_5 : --alpha None --curiosity free --free_eta .1
+e_f_6 : --alpha None --curiosity free --free_eta .5
+e_f_7 : --alpha None --curiosity free --free_eta 1
+e_f_8 : --alpha None --curiosity free --free_eta 5
+
+
+
+
+
+
+
+
+# Can we get a dkl_guesser working? Could save LOTS of time.
+e_f_g_1 : --alpha None --curiosity free --use_guesser True
+e_f_g_2 : --alpha None --curiosity free --use_guesser True --dkl_collect 2
+
+
