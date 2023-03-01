@@ -76,23 +76,24 @@ class Agent:
         # Train Forward
         
         # Make sure all this stuff is arranged right! 
-        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]
-        zps = [torch.normal(0, 1, (obs.shape[0], 1, self.args.z_size))]
+        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]                                                                                        # hq0
+        zps = [torch.normal(0, 1, (obs.shape[0], 1, self.args.z_size))]                                                                                 # zp1
         zqs = []
         pred_obs = []
         
         for step in range(obs.shape[1]):
-            zps.append(self.forward.zp_from_hq_tm1(hqs[-1]))
-            print("\n\n")
-            print(obs[:,step].unsqueeze(1).shape, prev_actions[:, step].unsqueeze(1).shape)
-            print("\n\n")
-            zqs.append(self.forward.zq_from_hq_t_and_o_t(hqs[-1], obs[:,step].unsqueeze(1).detach(), prev_actions[:, step].unsqueeze(1).detach()))
-            hqs.append(self.forward.h(zqs[-1], hqs[-1]))
+            zqs.append(self.forward.zq_from_hq_tm1_and_o_t(hqs[-1], obs[:,step].unsqueeze(1).detach(), prev_actions[:, step].unsqueeze(1).detach()))    # zq1
+            hqs.append(self.forward.h(zqs[-1], hqs[-1]))                                                                                                # hq1
+            zps.append(self.forward.zp_from_hq_tm1(hqs[-1]))                                                                                            # zp2   
             pred_obs.append(self.forward(hqs[-1]))    
             
         hqs = torch.cat(hqs, -2)
         zps = torch.cat(zps, -2) ; zqs = torch.cat(zqs, -2)
         pred_obs = torch.cat(pred_obs,-2)
+        
+        print("\n\n")
+        print(hqs.shape, zps.shape, zqs.shape, pred_obs.shape, all_obs.shape)
+        print("\n\n")
                             
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
         z_errors = F.mse_loss(zps[:,1:], zqs, reduction = "none") 

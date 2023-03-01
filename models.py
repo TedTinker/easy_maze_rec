@@ -32,7 +32,7 @@ class Forward(nn.Module):
     def zp_from_hq_tm1(self, hq_tm1):
         return(self.zp(hq_tm1))
     
-    def zq_from_hq_t_and_o_t(self, hp_t, o_t, prev_action):
+    def zq_from_hq_tm1_and_o_t(self, hp_t, o_t, prev_action):
         x = torch.cat([o_t, prev_action], -1)
         x = self.o(x)
         x = torch.cat([hp_t, x], -1) 
