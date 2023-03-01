@@ -26,10 +26,10 @@ class Forward(nn.Module):
         
         self.zp_mu    = nn.Linear(args.h_size,               args.z_size)
         self.zp_std   = nn.Linear(args.h_size,               args.z_size)
+        self.zq_mu    = nn.Linear(args.h_size * 2,           args.z_size) 
+        self.zq_std   = nn.Linear(args.h_size * 2,           args.z_size) 
         self.o        = nn.Linear(obs_size + action_size,    args.h_size)
-        self.zq_mu    = nn.Linear(args.h_size * 2,           args.z_size) # obs should go through network. Prev action, too?
-        self.zq_std   = nn.Linear(args.h_size * 2,           args.z_size) # obs should go through network. Prev action, too?
-        self.pred_o   = nn.Linear(args.h_size,          obs_size)
+        self.pred_o   = nn.Linear(args.h_size,               obs_size)
         
     def zp_from_hq_tm1(self, hq_tm1):
         mu = F.tanh(self.zp_mu(hq_tm1))
