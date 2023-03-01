@@ -159,7 +159,7 @@ def dkl(mu_1, sigma_1, mu_2, sigma_2):
     term_1 = torch.pow(mu_2 - mu_1, 2) / sigma_2 
     term_2 = sigma_1 / sigma_2 
     term_3 = torch.log(term_2)
-    out = (.5 * (term_1 + term_2 - term_3 - 1)).sum()
+    out = (.5 * (term_1 + term_2 - term_3 - 1))
     out = torch.nan_to_num(out)
     return(out)
 

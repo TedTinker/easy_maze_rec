@@ -8,7 +8,7 @@ from blitz.losses import kl_divergence_from_nn as b_kl_loss
 
 import numpy as np
 
-from utils import default_args, dkl, weights
+from utils import default_args, dkl
 from maze import action_size
 from buffer import RecurrentReplayBuffer
 from models import Forward, Actor, Critic
@@ -71,40 +71,48 @@ class Agent:
         all_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions], dim = 1)
         prev_actions = all_actions[:,:-1]
         
+        all_masks = torch.cat([torch.ones(obs.shape[0], 1, 1), masks], dim = 1)
+        
         
         
         # Train Forward
-        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]                 # hq0
-        zps = [torch.normal(0, 1, (obs.shape[0], 1, self.args.z_size))]          # zp1
+        hqs = [] ; pred_obs = []
         mu_ps = [] ; std_ps = [] ; mu_qs = [] ; std_qs = []
-        zqs = []
-        pred_obs = []
         
         for step in range(obs.shape[1]):
-            o = obs[:,step].unsqueeze(1).detach()                                # o1
-            prev_a = prev_actions[:, step].unsqueeze(1).detach()                 # a0
-            zq, mu_q, std_q = self.forward.zq_from_hq_tm1_and_o_t(hqs[-1], o, prev_a) 
-            zqs.append(zq)                                                       # zq1
+            
+            if(step == 0): 
+                hq = torch.zeros((obs.shape[0], 1, self.args.h_size))
+                hqs.append(hq)
+                
+            _, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)
+            mu_ps.append(mu_p) ; std_ps.append(std_p)                    
+            
+            o = all_obs[:,step].unsqueeze(1).detach()                                
+            prev_a = prev_actions[:, step].unsqueeze(1).detach()                 
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1_and_o_t(hq, o, prev_a) 
             mu_qs.append(mu_q) ; std_qs.append(std_q)
-            hqs.append(self.forward.h(zqs[-1], hqs[-1]))                         # hq1
-            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hqs[-1])
-            zps.append(zp)                                                       # zp2   
-            mu_ps.append(mu_p) ; std_ps.append(std_p)
-            pred_obs.append(self.forward(hqs[-1]))                               # Predict o2
+                    
+            hq = self.forward.h(zq, hq)
+            hqs.append(hq)
+            
+            pred_o = self.forward(hq)   
+            pred_obs.append(pred_o)                    
             
         hqs = torch.cat(hqs, -2)
-        zps = torch.cat(zps, -2) ; zqs = torch.cat(zqs, -2)
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
         mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
         pred_obs = torch.cat(pred_obs,-2)
+                
+        dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
         
-        print("\n\n")
-        print("hqs: {}. zps: {}. zqs: {}. pred_obs: {}. all_obs: {}. mu_ps: {}. std_ps: {}. mu_qs: {}. std_qs: {}.".format(
-            hqs.shape, zps.shape, zqs.shape, pred_obs.shape, all_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape))
-        print("\n\n")
+        #print("\n\n")
+        #print("hqs:\t{}.\nobs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
+        #    hqs.shape, all_obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
+        #print("\n\n")
                             
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
-        z_errors = F.mse_loss(zps[:,1:], zqs.detach(), reduction = "none")         # I'm not sure these are right
+        z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach()
         forward_loss = errors.sum()
         
@@ -119,14 +127,15 @@ class Agent:
             
         
         # Get curiosity          
-        naive_curiosity = self.args.naive_eta * errors.sum(-1)
-        free_curiosity = self.args.free_eta * dkl_changes  
+        naive_curiosity = self.args.naive_eta * errors.sum(-1).detach()
+        free_curiosity = self.args.free_eta * z_errors.sum(-1).detach()
         if(self.args.curiosity == "naive"):  curiosity = naive_curiosity.unsqueeze(-1)
         elif(self.args.curiosity == "free"): curiosity = free_curiosity.unsqueeze(-1)
         else:                                curiosity = torch.zeros(rewards.shape)
         
         extrinsic = torch.mean(rewards*masks.detach()).item()
         intrinsic_curiosity = curiosity.sum().item()
+        print(rewards.shape, curiosity.shape)
         rewards += curiosity
         
                 
@@ -134,6 +143,7 @@ class Agent:
         # Train critics
         next_actions, log_pis_next = self.actor.evaluate(hqs.detach())
         next_actions = next_actions[:,1:] ; log_pis_next = log_pis_next[:,1:]
+        print("\n\n", next_actions.shape, hqs[:,1:].shape)
         Q_target1_next = self.critic1_target(hqs[:,1:].detach(), next_actions.detach())
         Q_target2_next = self.critic2_target(hqs[:,1:].detach(), next_actions.detach())
         Q_target_next = torch.min(Q_target1_next, Q_target2_next)
@@ -208,7 +218,7 @@ class Agent:
         if(critic2_loss != None): critic2_loss = critic2_loss.item()
         losses = np.array([[obs_loss, z_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]])
         
-        return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy, dkl_change, naive_curiosity.sum().detach(), free_curiosity)
+        return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy, dkl_change, naive_curiosity.sum().detach(), free_curiosity.sum().detach())
                      
     def soft_update(self, local_model, target_model, tau):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
