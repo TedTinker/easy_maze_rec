@@ -70,14 +70,13 @@ class Agent:
         
         all_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions], dim = 1)
         prev_actions = all_actions[:,:-1]
-        
-        all_masks = torch.cat([torch.ones(obs.shape[0], 1, 1), masks], dim = 1)
-        
+                
         
         
         # Train Forward
         hqs = [] ; pred_obs = []
-        mu_ps = [] ; std_ps = [] ; mu_qs = [] ; std_qs = []
+        mu_ps = [] ; std_ps = []
+        mu_qs = [] ; std_qs = []
         
         for step in range(obs.shape[1]):
             
@@ -90,7 +89,7 @@ class Agent:
             
             o = all_obs[:,step].unsqueeze(1).detach()                                
             prev_a = prev_actions[:, step].unsqueeze(1).detach()                 
-            zq, mu_q, std_q = self.forward.zq_from_hq_tm1_and_o_t(hq, o, prev_a) 
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
             mu_qs.append(mu_q) ; std_qs.append(std_q)
                     
             hq = self.forward.h(zq, hq)

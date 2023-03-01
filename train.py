@@ -16,18 +16,18 @@ def episode(agent, push = True):
     t_maze = T_Maze()
     steps = 0
     with torch.no_grad():
-        hq = torch.zeros((1, 1, agent.args.h_size))                                       # hq0
-        zp = torch.normal(0, 1, (1, 1, agent.args.z_size))                                # zp1
-        a  = torch.zeros((1, action_size))                                                # a0
+        hq = torch.zeros((1, 1, agent.args.h_size))                                   
+        zp = torch.normal(0, 1, (1, 1, agent.args.z_size))             
+        a  = torch.zeros((1, action_size))                 
         while(done == False):
             steps += 1
-            o = t_maze.obs()                                                              # o1
-            hp = agent.forward.h(z_t = zp, hq_tm1 = hq)                                   # hp1
-            zq, _, _ = agent.forward.zq_from_hq_tm1_and_o_t(hq, o.unsqueeze(0), a.unsqueeze(0)) # zq1
-            hq = agent.forward.h(zq, hq)                                                  # hq1
-            zp, _, _ = agent.forward.zp_from_hq_tm1(hq)                                         # zp2
+            o = t_maze.obs()                               
+            hp = agent.forward.h(z_t = zp, hq_tm1 = hq)           
+            zq, _, _ = agent.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0)) 
+            hq = agent.forward.h(zq, hq)                                      
+            zp, _, _ = agent.forward.zp_from_hq_tm1(hq)         
 
-            a = agent.act(hp)                                                             # a1
+            a = agent.act(hp)                            
             action = a.squeeze(0).tolist()
             r, spot_name, done = t_maze.action(action[0], action[1])
             no = t_maze.obs()

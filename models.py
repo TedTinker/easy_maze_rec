@@ -38,7 +38,7 @@ class Forward(nn.Module):
         e      = dist.sample(std.shape)
         return(mu + e * std, mu, std)
     
-    def zq_from_hq_tm1_and_o_t(self, hq_tm1, o_t, prev_action):
+    def zq_from_hq_tm1(self, hq_tm1, o_t, prev_action):
         x = torch.cat([o_t, prev_action], -1)
         x = self.o(x)
         x = torch.cat([hq_tm1, x], -1) 
