@@ -83,7 +83,10 @@ class Agent:
         
         for step in range(obs.shape[1]):
             zps.append(self.forward.zp_from_hq_tm1(hqs[-1]))
-            zqs.append(self.forward.zq_from_hq_t_and_o_t(hqs[-1], obs[:,step].unsqueeze(1).detach()))
+            print("\n\n")
+            print(obs[:,step].unsqueeze(1).shape, prev_actions[:, step].unsqueeze(1).shape)
+            print("\n\n")
+            zqs.append(self.forward.zq_from_hq_t_and_o_t(hqs[-1], obs[:,step].unsqueeze(1).detach(), prev_actions[:, step].unsqueeze(1).detach()))
             hqs.append(self.forward.h(zqs[-1], hqs[-1]))
             pred_obs.append(self.forward(hqs[-1]))    
             

@@ -25,14 +25,17 @@ class Forward(nn.Module):
             batch_first = True)
         
         self.zp = nn.Linear(args.h_size,               args.z_size)
-        self.zq = nn.Linear(args.h_size + obs_size,    args.z_size) # obs should go through network. Prev action, too?
-        self.o  = nn.Linear(args.h_size,               obs_size)
+        self.o  = nn.Linear(obs_size + action_size,    args.h_size)
+        self.zq = nn.Linear(args.h_size * 2,           args.z_size) # obs should go through network. Prev action, too?
+        self.pred_o  = nn.Linear(args.h_size,          obs_size)
         
     def zp_from_hq_tm1(self, hq_tm1):
         return(self.zp(hq_tm1))
     
-    def zq_from_hq_t_and_o_t(self, hp_t, o_t):
-        x = torch.cat([hp_t, o_t], -1) 
+    def zq_from_hq_t_and_o_t(self, hp_t, o_t, prev_action):
+        x = torch.cat([o_t, prev_action], -1)
+        x = self.o(x)
+        x = torch.cat([hp_t, x], -1) 
         return(self.zq(x))
             
     # zp and hq to make hp, or zq and hq to make hq.                 
@@ -41,7 +44,7 @@ class Forward(nn.Module):
         return(h_t.permute(1, 0, 2))
     
     def forward(self, hq_tm1):
-        return(self.o(hq_tm1))
+        return(self.pred_o(hq_tm1))
     
         
         

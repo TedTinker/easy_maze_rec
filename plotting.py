@@ -220,7 +220,7 @@ def plots(plot_dicts, min_max_dict):
         
         
         
-        print("\n{}: {}.\n".format(plot_dict["title"], duration(start_time)))
+        print("\n{}: {}.".format(plot_dict["title"], duration(start_time)))
 
     
     

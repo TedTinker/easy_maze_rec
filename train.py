@@ -18,11 +18,15 @@ def episode(agent, push = True):
     with torch.no_grad():
         hq = torch.zeros((1, 1, agent.args.h_size))
         zp = torch.normal(0, 1, (1, 1, agent.args.z_size))
+        a  = torch.zeros((1, action_size))
         while(done == False):
             steps += 1
             o = t_maze.obs() 
             hp = agent.forward.h(z_t = zp, hq_tm1 = hq)
-            zq = agent.forward.zq_from_hq_t_and_o_t(hq, o.unsqueeze(0))
+            print("\n\n")
+            print(o.unsqueeze(0).shape, a.shape)
+            print("\n\n")
+            zq = agent.forward.zq_from_hq_t_and_o_t(hq, o.unsqueeze(0), a.unsqueeze(0))
             hq = agent.forward.h(zq, hq)
             zp = agent.forward.zp_from_hq_tm1(hq)
 

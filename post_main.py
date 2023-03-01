@@ -76,4 +76,4 @@ else:
             min_max_dict[key] = (minimum, maximum)
             
     plots(plot_dicts, min_max_dict)
-    print("Finished!")
+    print("\nFinished!")
