@@ -10,7 +10,7 @@ import numpy as np
 
 from utils import default_args, dkl, weights
 from maze import action_size
-from buffer import RecurrentReplayBuffer, DKL_Buffer
+from buffer import RecurrentReplayBuffer
 from models import Forward, Actor, Critic
 
 
@@ -51,7 +51,6 @@ class Agent:
         self.restart_memory()
         
     def restart_memory(self):
-        self.dkl_buffer = DKL_Buffer(self.args)
         self.memory = RecurrentReplayBuffer(self.args)
 
     def act(self, h):
@@ -92,14 +91,15 @@ class Agent:
         zps = torch.cat(zps, -2) ; zqs = torch.cat(zqs, -2)
         pred_obs = torch.cat(pred_obs,-2)
                             
-        obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") * masks.detach()
-        z_errors = F.mse_loss(zps[:,1:], zqs, reduction = "none") * masks.detach()
-        errors = torch.cat([obs_errors, z_errors], -1)
+        obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
+        z_errors = F.mse_loss(zps[:,1:], zqs, reduction = "none") 
+        errors = torch.cat([obs_errors, z_errors], -1) * masks.detach()
         forward_loss = errors.sum()
         
         self.forward_opt.zero_grad()
         forward_loss.backward()
         self.forward_opt.step()
+        
         
         
         dkl_changes = 0 ; dkl_change = 0 # Do this based on difference between forward's z bayes layers?

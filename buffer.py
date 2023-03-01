@@ -7,67 +7,6 @@ import torch.nn.functional as F
 from collections import namedtuple
 from utils import default_args
 from maze import obs_size, action_size
-
-
-
-class DKL_Buffer:
-    
-    def __init__(self, args = default_args):
-        self.args = args
-        
-        self.index = 0 ; self.filled = 0
-        self.errors = torch.zeros((args.dkl_buffer_capacity, args.batch_size, args.max_steps, 1))
-        self.b_0 = None 
-        self.b_1 = None 
-        self.b_2 = None 
-        self.b_3 = None 
-        self.a_0 = None 
-        self.a_1 = None 
-        self.a_2 = None 
-        self.a_3 = None 
-        self.dkl_changes = torch.zeros((args.dkl_buffer_capacity, args.batch_size, args.max_steps, 1))
-
-    def push(self, errors, before, after, dkl_changes):
-        if(self.b_0 == None):
-            self.b_0 = torch.zeros((self.args.dkl_buffer_capacity, before[0].shape[-1])) 
-            self.b_1 = torch.zeros((self.args.dkl_buffer_capacity, before[1].shape[-1])) 
-            self.b_2 = torch.zeros((self.args.dkl_buffer_capacity, before[2].shape[-1])) 
-            self.b_3 = torch.zeros((self.args.dkl_buffer_capacity, before[3].shape[-1])) 
-            self.a_0 = torch.zeros((self.args.dkl_buffer_capacity, after[0].shape[-1])) 
-            self.a_1 = torch.zeros((self.args.dkl_buffer_capacity, after[1].shape[-1])) 
-            self.a_2 = torch.zeros((self.args.dkl_buffer_capacity, after[2].shape[-1])) 
-            self.a_3 = torch.zeros((self.args.dkl_buffer_capacity, after[3].shape[-1])) 
-
-        errors = F.pad(errors, pad=(0, 0, 0, self.args.max_steps - errors.shape[1], 0, self.args.batch_size - errors.shape[0]), mode="constant", value=0)
-        self.errors[self.index] = errors.unsqueeze(0).detach()
-        self.b_0[self.index] = before[0].detach()
-        self.b_1[self.index] = before[1].detach()
-        self.b_2[self.index] = before[2].detach()
-        self.b_3[self.index] = before[3].detach()
-        self.a_0[self.index] = after[0].detach()
-        self.a_1[self.index] = after[1].detach()
-        self.a_2[self.index] = after[2].detach()
-        self.a_3[self.index] = after[3].detach()
-        dkl_changes = F.pad(dkl_changes, pad=(0, 0, 0, self.args.max_steps - dkl_changes.shape[1], 0, self.args.batch_size - dkl_changes.shape[0]), mode="constant", value=0)
-        self.dkl_changes[self.index] = dkl_changes.unsqueeze(0).detach()
-        
-        self.index += 1 
-        self.index %= self.args.dkl_buffer_capacity
-        if(self.filled < self.args.dkl_buffer_capacity): self.filled += 1
-                
-    def sample(self, batch_size = None):
-        if(batch_size == None): batch_size = self.args.batch_size
-        if(self.filled < batch_size): return self.sample(self.filled)
-        
-        options = [i for i in range(self.args.dkl_buffer_capacity) if i <= self.filled]
-        choices = np.random.choice(options,size=batch_size, replace=False)
-
-        errors = self.errors[choices]
-        before = [self.b_0[choices], self.b_1[choices], self.b_2[choices], self.b_3[choices]]        
-        after = [self.a_0[choices], self.a_1[choices], self.a_2[choices], self.a_3[choices]]
-        dkl_changes = self.dkl_changes[choices]
-                
-        return(errors, before, after, dkl_changes)
         
 
 

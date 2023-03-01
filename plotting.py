@@ -217,6 +217,10 @@ def plots(plot_dicts, min_max_dict):
         ax2.set_ylabel("Free")
         ax.legend(handles = handles)
         ax.set_title(plot_dict["title"] + "\nCuriosities, shared min/max")
+        
+        
+        
+        print("{}: {}.".format(plot_dict["title"], duration))
 
     
     

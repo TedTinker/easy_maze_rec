@@ -25,7 +25,7 @@ class Forward(nn.Module):
             batch_first = True)
         
         self.zp = nn.Linear(args.h_size,               args.z_size)
-        self.zq = nn.Linear(args.h_size + obs_size,    args.z_size)
+        self.zq = nn.Linear(args.h_size + obs_size,    args.z_size) # obs should go through network. Prev action, too?
         self.o  = nn.Linear(args.h_size,               obs_size)
         
     def zp_from_hq_tm1(self, hq_tm1):
@@ -41,70 +41,7 @@ class Forward(nn.Module):
         return(h_t.permute(1, 0, 2))
     
     def forward(self, hq_tm1):
-        x = torch.cat([hq_tm1], -1) 
-        return(self.o(x))
-
-    
-
-def get_stats(stats):
-    if(len(stats.shape) == 4): stats = stats.view(stats.shape[0], stats.shape[1]*stats.shape[2], stats.shape[3])
-    mean   = torch.mean(stats, 1, False)
-    q      = torch.quantile(stats, q = torch.tensor([0, .25, .5, .75, 1]).to(stats.device), dim = 1).permute(1, 2, 0).flatten(1)
-    var    = torch.var(stats, dim = 1) 
-    stats  = torch.cat([mean, q, var], dim = 1)
-    return(stats)
-
-new_dims = get_stats(torch.zeros((1,1,1))).shape[-1]
-
-
-
-class DKL_Guesser(nn.Module):
-    
-    def __init__(self, args = default_args):
-        super(DKL_Guesser, self).__init__()
-        
-        self.args = args
-        
-        self.errors = nn.Linear(1, args.dkl_hidden)
-        self.weights = nn.Linear(4, args.dkl_hidden)
-        self.bias = nn.Linear(4, args.dkl_hidden)
-        self.dkl_out = nn.Linear((3 * new_dims + 1) * args.dkl_hidden, 1)
-        
-        self.errors.apply(init_weights)
-        self.weights.apply(init_weights)
-        self.bias.apply(init_weights)
-        self.dkl_out.apply(init_weights)
-        self.to(args.device)
-        
-    def forward(self, errors, 
-                before_w_mu, before_w_sigma, before_b_mu, before_b_sigma,
-                after_w_mu, after_w_sigma, after_b_mu, after_b_sigma):
-                
-        errors = self.errors(errors)
-        errors_stats = get_stats(errors)
-        
-        change_w_mu  = after_w_mu - before_w_mu
-        change_w_sigma = after_w_sigma - before_w_sigma
-        weights = torch.cat([
-            before_w_mu.unsqueeze(-1), change_w_mu.unsqueeze(-1),
-            before_w_sigma.unsqueeze(-1), change_w_sigma.unsqueeze(-1)], dim = -1)
-        weights = self.weights(weights)
-        weights_stats = get_stats(weights)
-        
-        change_b_mu  = after_b_mu - before_b_mu
-        change_b_sigma = after_b_sigma - before_b_sigma
-        bias = torch.cat([
-            before_b_mu.unsqueeze(-1), change_b_mu.unsqueeze(-1), 
-            before_b_sigma.unsqueeze(-1), change_b_sigma.unsqueeze(-1)], dim = -1)
-        bias = self.bias(bias)
-        bias_stats = get_stats(bias)
-        
-        stats = torch.cat([errors_stats, weights_stats, bias_stats], dim = -1).unsqueeze(1).unsqueeze(1)
-        stats = stats.tile((1, errors.shape[1], errors.shape[2], 1))
-        together = torch.cat([errors, stats], dim = -1)
-    
-        dkl_out = self.dkl_out(together)
-        return(F.softplus(dkl_out))
+        return(self.o(hq_tm1))
     
         
         
