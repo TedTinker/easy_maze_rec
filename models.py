@@ -24,19 +24,29 @@ class Forward(nn.Module):
             hidden_size = self.args.h_size,
             batch_first = True)
         
-        self.zp = nn.Linear(args.h_size,               args.z_size)
-        self.o  = nn.Linear(obs_size + action_size,    args.h_size)
-        self.zq = nn.Linear(args.h_size * 2,           args.z_size) # obs should go through network. Prev action, too?
-        self.pred_o  = nn.Linear(args.h_size,          obs_size)
+        self.zp_mu    = nn.Linear(args.h_size,               args.z_size)
+        self.zp_std   = nn.Linear(args.h_size,               args.z_size)
+        self.o        = nn.Linear(obs_size + action_size,    args.h_size)
+        self.zq_mu    = nn.Linear(args.h_size * 2,           args.z_size) # obs should go through network. Prev action, too?
+        self.zq_std   = nn.Linear(args.h_size * 2,           args.z_size) # obs should go through network. Prev action, too?
+        self.pred_o   = nn.Linear(args.h_size,          obs_size)
         
     def zp_from_hq_tm1(self, hq_tm1):
-        return(self.zp(hq_tm1))
+        mu = F.tanh(self.zp_mu(hq_tm1))
+        std = torch.exp(self.zp_std(hq_tm1))
+        dist = Normal(0, 1)
+        e      = dist.sample(std.shape)
+        return(mu + e * std, mu, std)
     
-    def zq_from_hq_tm1_and_o_t(self, hp_t, o_t, prev_action):
+    def zq_from_hq_tm1_and_o_t(self, hq_tm1, o_t, prev_action):
         x = torch.cat([o_t, prev_action], -1)
         x = self.o(x)
-        x = torch.cat([hp_t, x], -1) 
-        return(self.zq(x))
+        x = torch.cat([hq_tm1, x], -1) 
+        mu = F.tanh(self.zq_mu(x))
+        std = torch.exp(self.zq_std(x))
+        dist = Normal(0, 1)
+        e      = dist.sample(std.shape)
+        return(mu + e * std, mu, std)
             
     # zp and hq to make hp, or zq and hq to make hq.                 
     def h(self, z_t, hq_tm1 = None):

@@ -74,29 +74,37 @@ class Agent:
         
         
         # Train Forward
-        
-        # Make sure all this stuff is arranged right! 
-        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]                                                                                        # hq0
-        zps = [torch.normal(0, 1, (obs.shape[0], 1, self.args.z_size))]                                                                                 # zp1
+        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]                 # hq0
+        zps = [torch.normal(0, 1, (obs.shape[0], 1, self.args.z_size))]          # zp1
+        mu_ps = [] ; std_ps = [] ; mu_qs = [] ; std_qs = []
         zqs = []
         pred_obs = []
         
         for step in range(obs.shape[1]):
-            zqs.append(self.forward.zq_from_hq_tm1_and_o_t(hqs[-1], obs[:,step].unsqueeze(1).detach(), prev_actions[:, step].unsqueeze(1).detach()))    # zq1
-            hqs.append(self.forward.h(zqs[-1], hqs[-1]))                                                                                                # hq1
-            zps.append(self.forward.zp_from_hq_tm1(hqs[-1]))                                                                                            # zp2   
-            pred_obs.append(self.forward(hqs[-1]))    
+            o = obs[:,step].unsqueeze(1).detach()                                # o1
+            prev_a = prev_actions[:, step].unsqueeze(1).detach()                 # a0
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1_and_o_t(hqs[-1], o, prev_a) 
+            zqs.append(zq)                                                       # zq1
+            mu_qs.append(mu_q) ; std_qs.append(std_q)
+            hqs.append(self.forward.h(zqs[-1], hqs[-1]))                         # hq1
+            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hqs[-1])
+            zps.append(zp)                                                       # zp2   
+            mu_ps.append(mu_p) ; std_ps.append(std_p)
+            pred_obs.append(self.forward(hqs[-1]))                               # Predict o2
             
         hqs = torch.cat(hqs, -2)
         zps = torch.cat(zps, -2) ; zqs = torch.cat(zqs, -2)
+        mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
+        mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
         pred_obs = torch.cat(pred_obs,-2)
         
         print("\n\n")
-        print(hqs.shape, zps.shape, zqs.shape, pred_obs.shape, all_obs.shape)
+        print("hqs: {}. zps: {}. zqs: {}. pred_obs: {}. all_obs: {}. mu_ps: {}. std_ps: {}. mu_qs: {}. std_qs: {}.".format(
+            hqs.shape, zps.shape, zqs.shape, pred_obs.shape, all_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape))
         print("\n\n")
                             
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
-        z_errors = F.mse_loss(zps[:,1:], zqs, reduction = "none") 
+        z_errors = F.mse_loss(zps[:,1:], zqs.detach(), reduction = "none")         # I'm not sure these are right
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach()
         forward_loss = errors.sum()
         
