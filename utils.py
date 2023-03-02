@@ -62,7 +62,7 @@ parser.add_argument('--dkl_collect',        type=int,   default = 1)
 parser.add_argument('--dkl_buffer_capacity',type=int,   default = 128) 
 
 # Saving data
-parser.add_argument('--keep_data',          type=int,   default = 1)
+parser.add_argument('--keep_data',          type=int,   default = 10)
 
 
 

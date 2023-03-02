@@ -53,8 +53,8 @@ class Agent:
     def restart_memory(self):
         self.memory = RecurrentReplayBuffer(self.args)
 
-    def act(self, h):
-        action = self.actor.get_action(h)
+    def act(self, h, o):
+        action = self.actor.get_action(h, o)
         return action
     
     
@@ -64,32 +64,39 @@ class Agent:
         self.steps += 1
 
         all_obs, actions, rewards, dones, masks = self.memory.sample(batch_size)
+        batch_size = rewards.shape[0] ; steps = rewards.shape[1]
         
         next_obs = all_obs[:,1:]
         obs = all_obs[:,:-1]
         
         all_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions], dim = 1)
         prev_actions = all_actions[:,:-1]
+        
+        print("\n\n")
+        print("all obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
+            all_obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
+        print("\n\n")
                 
         
         
         # Train Forward
-        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]
+        hqs = [] ; hq = torch.zeros((batch_size, 1, self.args.h_size))
         pred_obs = []
         mu_ps = [] ; std_ps = []
         mu_qs = [] ; std_qs = []
-        for step in range(-1, obs.shape[1]):
+        for step in range(steps):
             o = all_obs[:,step].unsqueeze(1).detach()     
-            prev_a = prev_actions[:, step].unsqueeze(1).detach()    
-            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hqs[-1])              # Predict this step's information
-            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hqs[-1], o, prev_a)   # Get information
-            hqs.append(self.forward.h(zq, hqs[-1]))                             # Put new information in hidden
-            if(step != -1): 
-                pred_obs.append(self.forward(hqs[-1]))      
-                mu_ps.append(mu_p) ; std_ps.append(std_p)    
-                mu_qs.append(mu_q) ; std_qs.append(std_q)                    
-            
-        hqs = torch.cat(hqs[1:], -2)
+            prev_a = all_actions[:, step].unsqueeze(1).detach()    
+            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)           
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
+
+            hqs.append(hq)       
+            mu_qs.append(mu_q) ; std_qs.append(std_q)
+            mu_ps.append(mu_p) ; std_ps.append(std_p) 
+            pred_obs.append(self.forward(hq))       
+            hq = self.forward.h(zq, hq)    
+        hqs.append(hq)                                                              
+        hqs = torch.cat(hqs, -2) 
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
         mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
         pred_obs = torch.cat(pred_obs,-2)
@@ -103,7 +110,7 @@ class Agent:
                             
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
         z_errors = dkls
-        errors = torch.cat([obs_errors, z_errors], -1) * masks.detach()
+        errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
         forward_loss = errors.sum()
         
         self.forward_opt.zero_grad()
@@ -131,10 +138,16 @@ class Agent:
                 
                 
         # Train critics
-        next_actions, log_pis_next = self.actor.evaluate(hqs[:,1:].detach())
+        next_actions, log_pis_next = self.actor.evaluate(hqs[:,1:].detach(), next_obs.detach())
+        print("\n\n")
+        print("new actions: {}. log_pis: {}.".format(next_actions.shape, log_pis_next.shape))
+        print("\n\n")
         Q_target1_next = self.critic1_target(hqs[:,1:].detach(), next_actions.detach())
         Q_target2_next = self.critic2_target(hqs[:,1:].detach(), next_actions.detach())
         Q_target_next = torch.min(Q_target1_next, Q_target2_next)
+        print("\n\n")
+        print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
+        print("\n\n")
         if self.args.alpha == None: Q_targets = rewards.cpu() + (self.args.GAMMA * (1 - dones.cpu()) * (Q_target_next.cpu() - self.alpha * log_pis_next.cpu()))
         else:                       Q_targets = rewards.cpu() + (self.args.GAMMA * (1 - dones.cpu()) * (Q_target_next.cpu() - self.args.alpha * log_pis_next.cpu()))
         
@@ -154,7 +167,7 @@ class Agent:
         
         # Train alpha
         if self.args.alpha == None:
-            actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach())
+            actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach(), obs.detach())
             alpha_loss = -(self.log_alpha.cpu() * (log_pis.cpu() + self.target_entropy).detach().cpu())*masks.detach().cpu()
             alpha_loss = alpha_loss.sum() / masks.sum()
             self.alpha_opt.zero_grad()
@@ -171,7 +184,7 @@ class Agent:
             if self.args.alpha == None: alpha = self.alpha 
             else:                       
                 alpha = self.args.alpha
-                actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach())
+                actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach(), obs)
 
             if self._action_prior == "normal":
                 loc = torch.zeros(self.action_size, dtype=torch.float64)

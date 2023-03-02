@@ -81,7 +81,8 @@ def plots(plot_dicts, min_max_dict):
         # Ending spot
         ax = axs[2,i] if len(plot_dicts) > 1 else axs[2]
         spot_names = np.array([spot_names for spot_names in plot_dict["spot_names"]])
-        agents = spot_names.shape[0] ; xs = list(range(spot_names.shape[1]))        
+        agents = spot_names.shape[0]
+        xs = list(range(spot_names.shape[1])) ; xs = [x * plot_dict["args"][0].keep_data for x in xs] 
         kinds = ["NONE", "BAD", "GOOD"]
         
         for j, kind in enumerate(kinds):

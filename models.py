@@ -24,15 +24,19 @@ class Forward(nn.Module):
             hidden_size = self.args.h_size,
             batch_first = True)
         
-        self.zp_mu    = nn.Linear(args.h_size,               args.z_size)
+        self.zp_mu    = nn.Sequential(
+            nn.Linear(            args.h_size,               args.z_size),
+            nn.Tanh())
         self.zp_std   = nn.Linear(args.h_size,               args.z_size)
-        self.zq_mu    = nn.Linear(args.h_size * 2,           args.z_size) 
+        self.zq_mu    = nn.Sequential(
+            nn.Linear(            args.h_size*2,             args.z_size),
+            nn.Tanh())
         self.zq_std   = nn.Linear(args.h_size * 2,           args.z_size) 
         self.o        = nn.Linear(obs_size + action_size,    args.h_size)
         self.pred_o   = nn.Linear(args.h_size,               obs_size)
         
     def zp_from_hq_tm1(self, hq_tm1):
-        mu = F.tanh(self.zp_mu(hq_tm1))
+        mu = self.zp_mu(hq_tm1)
         std = torch.exp(self.zp_std(hq_tm1))
         dist = Normal(0, 1)
         e      = dist.sample(std.shape)
@@ -42,10 +46,10 @@ class Forward(nn.Module):
         x = torch.cat([o_t, prev_action], -1)
         x = self.o(x)
         x = torch.cat([hq_tm1, x], -1) 
-        mu = F.tanh(self.zq_mu(x))
+        mu = self.zq_mu(x)
         std = torch.exp(self.zq_std(x))
         dist = Normal(0, 1)
-        e      = dist.sample(std.shape)
+        e = dist.sample(std.shape)
         return(mu + e * std, mu, std)
             
     # zp and hq to make hp, or zq and hq to make hq.                 
@@ -68,7 +72,7 @@ class Actor(nn.Module):
         self.log_std_min = log_std_min ; self.log_std_max = log_std_max
                 
         self.lin = nn.Sequential(
-            nn.Linear(args.h_size, args.hidden),
+            nn.Linear(args.h_size + obs_size, args.hidden),
             nn.LeakyReLU())
         self.mu = nn.Linear(args.hidden, action_size)
         self.log_std_linear = nn.Linear(args.hidden, action_size)
@@ -78,15 +82,16 @@ class Actor(nn.Module):
         self.log_std_linear.apply(init_weights)
         self.to(self.args.device)
 
-    def forward(self, h):
-        x = self.lin(h)
+    def forward(self, h, o):
+        x = torch.cat([h, o], -1)
+        x = self.lin(x)
         mu = self.mu(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         return(mu, log_std)
 
-    def evaluate(self, h, epsilon=1e-6):
-        mu, log_std = self.forward(h)
+    def evaluate(self, h, o, epsilon=1e-6):
+        mu, log_std = self.forward(h, o)
         std = log_std.exp()
         dist = Normal(0, 1)
         e = dist.sample(std.shape).to(self.args.device)
@@ -96,8 +101,8 @@ class Actor(nn.Module):
         log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
         return(action, log_prob)
 
-    def get_action(self, h):
-        mu, log_std = self.forward(h)
+    def get_action(self, h, o):
+        mu, log_std = self.forward(h, o)
         std = log_std.exp()
         dist = Normal(0, 1)
         e      = dist.sample(std.shape).to(self.args.device)
