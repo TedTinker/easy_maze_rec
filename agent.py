@@ -53,8 +53,8 @@ class Agent:
     def restart_memory(self):
         self.memory = RecurrentReplayBuffer(self.args)
 
-    def act(self, h, o):
-        action = self.actor.get_action(h, o)
+    def act(self, h, o, a):
+        action = self.actor.get_action(h, o, a)
         return action
     
     
@@ -85,8 +85,8 @@ class Agent:
         mu_ps = [] ; std_ps = []
         mu_qs = [] ; std_qs = []
         for step in range(steps):
-            o = all_obs[:,step].unsqueeze(1).detach()     
-            prev_a = all_actions[:, step].unsqueeze(1).detach()    
+            o = all_obs[:,step].unsqueeze(1) 
+            prev_a = all_actions[:, step].unsqueeze(1)
             zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)           
             zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
 
@@ -108,9 +108,9 @@ class Agent:
             hqs.shape, next_obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
         print("\n\n")
                             
-        obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
+        obs_errors = F.mse_loss(pred_obs, next_obs, reduction = "none") 
         z_errors = dkls
-        errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
+        errors = torch.cat([obs_errors, z_errors], -1) * masks # plus complexity?
         forward_loss = errors.sum()
         
         self.forward_opt.zero_grad()
@@ -125,12 +125,12 @@ class Agent:
         
         # Get curiosity          
         naive_curiosity = self.args.naive_eta * errors.sum(-1).detach()
-        free_curiosity = self.args.free_eta * z_errors.sum(-1).detach()
+        free_curiosity  = self.args.free_eta  * z_errors.sum(-1).detach()
         if(self.args.curiosity == "naive"):  curiosity = naive_curiosity.unsqueeze(-1)
         elif(self.args.curiosity == "free"): curiosity = free_curiosity.unsqueeze(-1)
         else:                                curiosity = torch.zeros(rewards.shape)
         
-        extrinsic = torch.mean(rewards*masks.detach()).item()
+        extrinsic = torch.mean(rewards*masks).item()
         intrinsic_curiosity = curiosity.sum().item()
         print("Rewards: {}. Curiosity: {}.".format(rewards.shape, curiosity.shape))
         rewards += curiosity
@@ -138,12 +138,12 @@ class Agent:
                 
                 
         # Train critics
-        next_actions, log_pis_next = self.actor.evaluate(hqs[:,1:].detach(), next_obs.detach())
+        new_actions, log_pis_next = self.actor.evaluate(hqs[:,1:], next_obs, actions)
         print("\n\n")
-        print("new actions: {}. log_pis: {}.".format(next_actions.shape, log_pis_next.shape))
+        print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
         print("\n\n")
-        Q_target1_next = self.critic1_target(hqs[:,1:].detach(), next_actions.detach())
-        Q_target2_next = self.critic2_target(hqs[:,1:].detach(), next_actions.detach())
+        Q_target1_next = self.critic1_target(hqs[:,1:], next_obs, actions, new_actions)
+        Q_target2_next = self.critic2_target(hqs[:,1:], next_obs, actions, new_actions)
         Q_target_next = torch.min(Q_target1_next, Q_target2_next)
         print("\n\n")
         print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
@@ -151,14 +151,14 @@ class Agent:
         if self.args.alpha == None: Q_targets = rewards.cpu() + (self.args.GAMMA * (1 - dones.cpu()) * (Q_target_next.cpu() - self.alpha * log_pis_next.cpu()))
         else:                       Q_targets = rewards.cpu() + (self.args.GAMMA * (1 - dones.cpu()) * (Q_target_next.cpu() - self.args.alpha * log_pis_next.cpu()))
         
-        Q_1 = self.critic1(hqs[:,:-1].detach(), actions.detach())
-        critic1_loss = 0.5*F.mse_loss(Q_1*masks.detach().cpu(), Q_targets.detach()*masks.detach().cpu())
+        Q_1 = self.critic1(hqs[:,:-1].detach(), obs, prev_actions, actions)
+        critic1_loss = 0.5*F.mse_loss(Q_1*masks, Q_targets.detach()*masks)
         self.critic1_opt.zero_grad()
         critic1_loss.backward()
         self.critic1_opt.step()
         
-        Q_2 = self.critic2(hqs[:,:-1].detach(), actions.detach())
-        critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach().cpu(), Q_targets.detach()*masks.detach().cpu())
+        Q_2 = self.critic2(hqs[:,:-1].detach(), obs, prev_actions, actions)
+        critic2_loss = 0.5*F.mse_loss(Q_2*masks, Q_targets.detach()*masks)
         self.critic2_opt.zero_grad()
         critic2_loss.backward()
         self.critic2_opt.step()
@@ -167,8 +167,8 @@ class Agent:
         
         # Train alpha
         if self.args.alpha == None:
-            actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach(), obs.detach())
-            alpha_loss = -(self.log_alpha.cpu() * (log_pis.cpu() + self.target_entropy).detach().cpu())*masks.detach().cpu()
+            actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach(), obs, prev_actions)
+            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy))*masks
             alpha_loss = alpha_loss.sum() / masks.sum()
             self.alpha_opt.zero_grad()
             alpha_loss.backward()
@@ -182,9 +182,9 @@ class Agent:
         # Train actor
         if self.steps % self.args.d == 0:
             if self.args.alpha == None: alpha = self.alpha 
-            else:                       
-                alpha = self.args.alpha
-                actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach(), obs)
+            else:                       alpha = self.args.alpha
+            
+            actions, log_pis = self.actor.evaluate(hqs[:,:-1].detach(), obs, prev_actions)
 
             if self._action_prior == "normal":
                 loc = torch.zeros(self.action_size, dtype=torch.float64)
@@ -194,10 +194,10 @@ class Agent:
             elif self._action_prior == "uniform":
                 policy_prior_log_probs = 0.0
             Q = torch.min(
-                self.critic1(hqs[:,:-1].detach(), actions), 
-                self.critic2(hqs[:,:-1].detach(), actions)).sum(-1).unsqueeze(-1)
-            intrinsic_entropy = torch.mean((alpha * log_pis.cpu())*masks.detach().cpu()).item()
-            actor_loss = (alpha * log_pis.cpu() - policy_prior_log_probs - Q.cpu())*masks.detach().cpu()
+                self.critic1(hqs[:,:-1].detach(), obs, prev_actions, actions), 
+                self.critic2(hqs[:,:-1].detach(), obs, prev_actions, actions)).sum(-1).unsqueeze(-1)
+            intrinsic_entropy = torch.mean((alpha * log_pis.cpu())*masks).item()
+            actor_loss = (alpha * log_pis.cpu() - policy_prior_log_probs - Q)*masks
             actor_loss = actor_loss.sum() / masks.sum()
 
             self.actor_opt.zero_grad()
@@ -219,7 +219,7 @@ class Agent:
         if(critic2_loss != None): critic2_loss = critic2_loss.item()
         losses = np.array([[obs_loss, z_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]])
         
-        return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy, dkl_change, naive_curiosity.sum().detach(), free_curiosity.sum().detach())
+        return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy, dkl_change, naive_curiosity.sum(), free_curiosity.sum())
                      
     def soft_update(self, local_model, target_model, tau):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):

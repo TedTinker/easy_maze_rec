@@ -74,7 +74,7 @@ class Actor(nn.Module):
         self.log_std_min = log_std_min ; self.log_std_max = log_std_max
                 
         self.lin = nn.Sequential(
-            nn.Linear(args.h_size + obs_size, args.hidden),
+            nn.Linear(args.h_size + obs_size + action_size, args.hidden),
             nn.LeakyReLU())
         self.mu = nn.Linear(args.hidden, action_size)
         self.log_std_linear = nn.Linear(args.hidden, action_size)
@@ -84,16 +84,16 @@ class Actor(nn.Module):
         self.log_std_linear.apply(init_weights)
         self.to(self.args.device)
 
-    def forward(self, h, o):
-        x = torch.cat([h, o], -1)
+    def forward(self, h, o, a):
+        x = torch.cat([h, o, a], -1)
         x = self.lin(x)
         mu = self.mu(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         return(mu, log_std)
 
-    def evaluate(self, h, o, epsilon=1e-6):
-        mu, log_std = self.forward(h, o)
+    def evaluate(self, h, o, a, epsilon=1e-6):
+        mu, log_std = self.forward(h, o, a)
         std = log_std.exp()
         dist = Normal(0, 1)
         e = dist.sample(std.shape).to(self.args.device)
@@ -103,8 +103,8 @@ class Actor(nn.Module):
         log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
         return(action, log_prob)
 
-    def get_action(self, h, o):
-        mu, log_std = self.forward(h, o)
+    def get_action(self, h, o, a):
+        mu, log_std = self.forward(h, o, a)
         std = log_std.exp()
         dist = Normal(0, 1)
         e      = dist.sample(std.shape).to(self.args.device)
@@ -121,15 +121,15 @@ class Critic(nn.Module):
         self.args = args
                         
         self.lin = nn.Sequential(
-            nn.Linear(args.h_size + action_size, args.hidden),
+            nn.Linear(args.h_size + obs_size + 2*action_size, args.hidden),
             nn.LeakyReLU(),
             nn.Linear(args.hidden, 1))
 
         self.lin.apply(init_weights)
         self.to(args.device)
 
-    def forward(self, h, action):
-        x = torch.cat((h, action), dim=-1)
+    def forward(self, h, o, a, action):
+        x = torch.cat((h, o, a, action), dim=-1)
         x = self.lin(x).to("cpu")
         return(x)
     
