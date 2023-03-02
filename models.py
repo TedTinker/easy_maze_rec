@@ -33,7 +33,9 @@ class Forward(nn.Module):
             nn.Tanh())
         self.zq_std   = nn.Linear(args.h_size * 2,           args.z_size) 
         self.o        = nn.Linear(obs_size + action_size,    args.h_size)
-        self.pred_o   = nn.Linear(args.h_size,               obs_size)
+        self.pred_o   = nn.Sequential(
+            nn.Linear(            args.h_size,               obs_size),
+            nn.Sigmoid())
         
     def zp_from_hq_tm1(self, hq_tm1):
         mu = self.zp_mu(hq_tm1)
@@ -52,7 +54,7 @@ class Forward(nn.Module):
         e = dist.sample(std.shape)
         return(mu + e * std, mu, std)
             
-    # zp and hq to make hp, or zq and hq to make hq.                 
+    # zp for hp, or zq for hq.                 
     def h(self, z_t, hq_tm1 = None):
         _, h_t = self.gru(z_t, hq_tm1.permute(1, 0, 2))  
         return(h_t.permute(1, 0, 2))

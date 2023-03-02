@@ -28,7 +28,7 @@ def episode(agent, push = True):
             zq, _, _ = agent.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0))    
             hq = agent.forward.h(zq, hq)                            
             
-            a = agent.act(hp, o.unsqueeze(0))   
+            a = agent.act(hq, o.unsqueeze(0))   
             action = a.squeeze(0).tolist()
             r, spot_name, done = t_maze.action(action[0], action[1])
             no = t_maze.obs()
