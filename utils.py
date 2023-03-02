@@ -7,7 +7,7 @@ if(os.getcwd().split("/")[-1] != "easy_maze_rec"): os.chdir("easy_maze_rec")
 print(os.getcwd())
 
 import torch
-torch.autograd.set_detect_anomaly(True)
+#torch.autograd.set_detect_anomaly(True)
 from blitz.modules import BayesianLinear, BayesianLSTM
 from blitz.modules.base_bayesian_module import BayesianModule
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
