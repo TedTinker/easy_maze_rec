@@ -25,20 +25,22 @@ class Forward(nn.Module):
             batch_first = True)
         
         self.zp_mu    = nn.Sequential(
-            nn.Linear(            args.h_size,               args.z_size),
+            nn.Linear(args.h_size, args.z_size),
             nn.Tanh())
         self.zp_std   = nn.Sequential(
-            nn.Linear(            args.h_size,               args.z_size),
+            nn.Linear(args.h_size, args.z_size),
             nn.Softplus())
         self.zq_mu    = nn.Sequential(
-            nn.Linear(            args.h_size * 2,           args.z_size),
+            nn.Linear(args.h_size * 2, args.z_size),
             nn.Tanh())
         self.zq_std   = nn.Sequential(
-            nn.Linear(            args.h_size * 2,           args.z_size),
+            nn.Linear(args.h_size * 2, args.z_size),
             nn.Softplus())
-        self.o        = nn.Linear(obs_size + action_size,    args.h_size)
+        self.o        = nn.Sequential(
+            nn.Linear(obs_size + action_size, args.h_size),
+            nn.LeakyReLU())
         self.pred_o   = nn.Sequential(
-            nn.Linear(            args.h_size,               obs_size),
+            nn.Linear(args.h_size, obs_size),
             nn.Sigmoid())
         
     def zp_from_hq_tm1(self, hq_tm1):

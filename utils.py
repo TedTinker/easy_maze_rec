@@ -29,7 +29,6 @@ parser.add_argument('--hidden',             type=int,   default = 16)
 parser.add_argument('--h_size',             type=int,   default = 16)
 parser.add_argument('--z_size',             type=int,   default = 8)
 parser.add_argument('--forward_sum_bayes',  type=bool,  default = True)
-parser.add_argument("--dkl_rate",           type=float, default = .00005)   # Scale bayesian dkl
 parser.add_argument('--forward_lr',         type=float, default = .01)
 parser.add_argument('--actor_lr',           type=float, default = .01) 
 parser.add_argument('--critic_lr',          type=float, default = .01) 
@@ -53,14 +52,6 @@ parser.add_argument("--free_eta",           type=float, default = .005)     # Sc
 parser.add_argument("--tau",                type=float, default = .05)      # For soft-updating target critics
 parser.add_argument("--sample_elbo",        type=int,   default = 5)        # Samples for elbo
 parser.add_argument("--curiosity",          type=str,   default = "none")   # Which kind of curiosity
-
-# DKL Guesser 
-parser.add_argument('--use_guesser',        type=bool,  default = False)
-parser.add_argument('--dkl_hidden',         type=int,   default = 32)
-parser.add_argument('--dkl_batch_size',     type=int,   default = 16)
-parser.add_argument('--dkl_guesser_lr',     type=float, default = .01) 
-parser.add_argument('--dkl_collect',        type=int,   default = 1) 
-parser.add_argument('--dkl_buffer_capacity',type=int,   default = 128) 
 
 # Saving data
 parser.add_argument('--keep_data',          type=int,   default = 10)
