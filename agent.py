@@ -74,41 +74,32 @@ class Agent:
         
         
         # Train Forward
-        hqs = [] ; pred_obs = []
+        hqs = [torch.zeros((obs.shape[0], 1, self.args.h_size))]
+        pred_obs = []
         mu_ps = [] ; std_ps = []
         mu_qs = [] ; std_qs = []
-        
-        for step in range(obs.shape[1]):
+        for step in range(-1, obs.shape[1]):
+            o = all_obs[:,step].unsqueeze(1).detach()     
+            prev_a = prev_actions[:, step].unsqueeze(1).detach()    
+            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hqs[-1])              # Predict this step's information
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hqs[-1], o, prev_a)   # Get information
+            hqs.append(self.forward.h(zq, hqs[-1]))                             # Put new information in hidden
+            if(step != -1): 
+                pred_obs.append(self.forward(hqs[-1]))      
+                mu_ps.append(mu_p) ; std_ps.append(std_p)    
+                mu_qs.append(mu_q) ; std_qs.append(std_q)                    
             
-            if(step == 0): 
-                hq = torch.zeros((obs.shape[0], 1, self.args.h_size))
-                hqs.append(hq)
-                
-            _, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)
-            mu_ps.append(mu_p) ; std_ps.append(std_p)                    
-            
-            o = all_obs[:,step].unsqueeze(1).detach()                                
-            prev_a = prev_actions[:, step].unsqueeze(1).detach()                 
-            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
-            mu_qs.append(mu_q) ; std_qs.append(std_q)
-                    
-            hq = self.forward.h(zq, hq)
-            hqs.append(hq)
-            
-            pred_o = self.forward(hq)   
-            pred_obs.append(pred_o)                    
-            
-        hqs = torch.cat(hqs, -2)
+        hqs = torch.cat(hqs[1:], -2)
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
         mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
         pred_obs = torch.cat(pred_obs,-2)
                 
         dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
         
-        #print("\n\n")
-        #print("hqs:\t{}.\nobs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
-        #    hqs.shape, all_obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
-        #print("\n\n")
+        print("\n\n")
+        print("hqs:\t{}.\nobs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
+            hqs.shape, next_obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
+        print("\n\n")
                             
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
         z_errors = dkls
@@ -121,7 +112,7 @@ class Agent:
         
         
         
-        dkl_changes = 0 ; dkl_change = 0 # Do this based on difference between forward's z bayes layers?
+        dkl_changes = 0 ; dkl_change = 0 # No longer relevent
         
             
         
@@ -134,15 +125,13 @@ class Agent:
         
         extrinsic = torch.mean(rewards*masks.detach()).item()
         intrinsic_curiosity = curiosity.sum().item()
-        print(rewards.shape, curiosity.shape)
+        print("Rewards: {}. Curiosity: {}.".format(rewards.shape, curiosity.shape))
         rewards += curiosity
         
                 
                 
         # Train critics
-        next_actions, log_pis_next = self.actor.evaluate(hqs.detach())
-        next_actions = next_actions[:,1:] ; log_pis_next = log_pis_next[:,1:]
-        print("\n\n", next_actions.shape, hqs[:,1:].shape)
+        next_actions, log_pis_next = self.actor.evaluate(hqs[:,1:].detach())
         Q_target1_next = self.critic1_target(hqs[:,1:].detach(), next_actions.detach())
         Q_target2_next = self.critic2_target(hqs[:,1:].detach(), next_actions.detach())
         Q_target_next = torch.min(Q_target1_next, Q_target2_next)

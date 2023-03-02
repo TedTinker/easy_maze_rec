@@ -17,23 +17,21 @@ def episode(agent, push = True):
     steps = 0
     with torch.no_grad():
         hq = torch.zeros((1, 1, agent.args.h_size))                                   
-        zp = torch.normal(0, 1, (1, 1, agent.args.z_size))             
-        a  = torch.zeros((1, action_size))
-        o = t_maze.obs()          
-        zq, _, _ = agent.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0))       
-        hq = agent.forward.h(zq, hq)    
+        prev_a  = torch.zeros((1, action_size))
         while(done == False):
             steps += 1
-            o = t_maze.obs()                               
-            hp = agent.forward.h(z_t = zp, hq_tm1 = hq)           
-            zq, _, _ = agent.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0)) 
-            hq = agent.forward.h(zq, hq)                                      
-            zp, _, _ = agent.forward.zp_from_hq_tm1(hq)         
-
-            a = agent.act(hp)                            
+            o = t_maze.obs()          
+            
+            zq, _, _ = agent.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), prev_a.unsqueeze(0))    # Get new information
+            hq = agent.forward.h(zq, hq)                                                        # Put new information in hidden
+            zp, _, _ = agent.forward.zp_from_hq_tm1(hq)                                         # Predict future's information
+            hp = agent.forward.h(zp, hq)                                                        # Predict future's hidden
+            
+            a = agent.act(hp)                                                                   # Take action based on prediction
             action = a.squeeze(0).tolist()
             r, spot_name, done = t_maze.action(action[0], action[1])
             no = t_maze.obs()
+            prev_a = a
             if(steps >= agent.args.max_steps): done = True ; r = -1
             if(push): agent.memory.push(o, a, r, no, done, done, agent)
     return(r, spot_name)
