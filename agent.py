@@ -63,18 +63,17 @@ class Agent:
                 
         self.steps += 1
 
-        all_obs, actions, rewards, dones, masks = self.memory.sample(batch_size)
+        obs, actions, rewards, dones, masks = self.memory.sample(batch_size)
         batch_size = rewards.shape[0] ; steps = rewards.shape[1]
         
-        next_obs = all_obs[:,1:]
-        obs = all_obs[:,:-1]
+        next_obs = obs[:,1:]
         
         all_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions], dim = 1)
         prev_actions = all_actions[:,:-1]
         
         print("\n\n")
-        print("all obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
-            all_obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
+        print("obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
+            obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
         print("\n\n")
                 
         
@@ -84,18 +83,19 @@ class Agent:
         pred_obs = []
         mu_ps = [] ; std_ps = []
         mu_qs = [] ; std_qs = []
-        for step in range(steps):
-            o = all_obs[:,step].unsqueeze(1).detach()     
+        for step in range(steps+1):
+            o = obs[:,step].unsqueeze(1).detach()     
             prev_a = all_actions[:, step].unsqueeze(1).detach()    
+            
             zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)           
             zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
-
-            hqs.append(hq)       
-            mu_qs.append(mu_q) ; std_qs.append(std_q)
-            mu_ps.append(mu_p) ; std_ps.append(std_p) 
-            pred_obs.append(self.forward(hq))       
             hq = self.forward.h(zq, hq)    
-        hqs.append(hq)                                                              
+
+            hqs.append(hq)      
+            if(step != steps):
+                mu_qs.append(mu_q) ; std_qs.append(std_q)
+                mu_ps.append(mu_p) ; std_ps.append(std_p) 
+                pred_obs.append(self.forward(hq))       
         hqs = torch.cat(hqs, -2) 
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
         mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
@@ -108,7 +108,7 @@ class Agent:
             hqs.shape, next_obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
         print("\n\n")
                             
-        obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") 
+        obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct?
         z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
         forward_loss = errors.sum()

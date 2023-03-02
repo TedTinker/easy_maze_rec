@@ -28,7 +28,6 @@ parser.add_argument('--wall_punishment',    type=int,   default = -1)
 parser.add_argument('--hidden',             type=int,   default = 16)
 parser.add_argument('--h_size',             type=int,   default = 16)
 parser.add_argument('--z_size',             type=int,   default = 8)
-parser.add_argument('--forward_sum_bayes',  type=bool,  default = True)
 parser.add_argument('--forward_lr',         type=float, default = .01)
 parser.add_argument('--actor_lr',           type=float, default = .01) 
 parser.add_argument('--critic_lr',          type=float, default = .01) 
@@ -41,7 +40,7 @@ parser.add_argument('--selection',          type=str,   default = "uniform")
 parser.add_argument('--power',              type=float, default = 1)
 
 # Training 
-parser.add_argument('--epochs',             type=int,   default = 1000)
+parser.add_argument('--epochs',             type=int,   default = 10000)
 parser.add_argument('--batch_size',         type=int,   default = 8)
 parser.add_argument('--GAMMA',              type=int,   default = .99)
 parser.add_argument("--d",                  type=int,   default = 2)        # Delay to train actors

@@ -20,8 +20,8 @@ class Forward(nn.Module):
         self.args = args
         
         self.gru = nn.GRU(
-            input_size =  self.args.z_size,
-            hidden_size = self.args.h_size,
+            input_size =  args.z_size,
+            hidden_size = args.h_size,
             batch_first = True)
         
         self.zp_mu    = nn.Sequential(
