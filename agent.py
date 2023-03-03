@@ -257,7 +257,7 @@ class Agent:
 
             mu_qs.append(mu_q) ; std_qs.append(std_q)
             mu_ps.append(mu_p) ; std_ps.append(std_p) 
-            pred_obs.append(self.forward(hq))       
+            pred_obs.append(self.forward.predict_o(hq))       
                 
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
         mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)

@@ -14,10 +14,11 @@ from maze import obs_size, action_size
 
 class Forward(nn.Module):
 
-    def __init__(self, args = default_args):
+    def __init__(self, args = default_args, log_std_min=-20, log_std_max=2):
         super(Forward, self).__init__()
 
         self.args = args
+        self.log_std_min = log_std_min ; self.log_std_max = log_std_max
         
         self.gru = nn.GRU(
             input_size =  args.z_size,
@@ -36,12 +37,37 @@ class Forward(nn.Module):
         self.zq_std   = nn.Sequential(
             nn.Linear(args.h_size * 2, args.z_size),
             nn.Softplus())
-        self.o        = nn.Sequential(
+        
+        self.new_o    = nn.Sequential(
             nn.Linear(obs_size + action_size, args.h_size),
             nn.LeakyReLU())
+        
         self.pred_o   = nn.Sequential(
             nn.Linear(args.h_size, obs_size),
             nn.Sigmoid())
+        
+        self.Q        = nn.Sequential(
+            nn.Linear(args.h_size + action_size, 1))
+        
+        self.a = nn.Sequential(
+            nn.Linear(args.h_size, args.hidden),
+            nn.LeakyReLU())
+        self.a_mu = nn.Linear(args.hidden, action_size)
+        self.a_log_std_linear = nn.Linear(args.hidden, action_size)
+
+
+        
+        self.zp_mu.apply(init_weights)
+        self.zp_std.apply(init_weights)
+        self.zq_mu.apply(init_weights)
+        self.zp_std.apply(init_weights)
+        self.new_o.apply(init_weights)
+        self.pred_o.apply(init_weights)
+        self.Q.apply(init_weights)
+        self.a.apply(init_weights)
+        self.a_mu.apply(init_weights)
+        self.a_log_std_linear.apply(init_weights)
+        self.to(self.args.device)
         
     def zp_from_hq_tm1(self, hq_tm1):
         mu = self.zp_mu(hq_tm1)
@@ -52,7 +78,7 @@ class Forward(nn.Module):
     
     def zq_from_hq_tm1(self, hq_tm1, o_t, prev_action):
         x = torch.cat([o_t, prev_action], -1)
-        x = self.o(x)
+        x = self.new_o(x)
         x = torch.cat([hq_tm1, x], -1) 
         mu = self.zq_mu(x)
         std = self.zq_std(x)
@@ -65,8 +91,41 @@ class Forward(nn.Module):
         _, h_t = self.gru(z_t, hq_tm1.permute(1, 0, 2))  
         return(h_t.permute(1, 0, 2))
     
-    def forward(self, hq_tm1):
+    def predict_o(self, hq_tm1):
         return(self.pred_o(hq_tm1))
+    
+    def get_Q(self, hq_t, action):
+        x = torch.cat((hq_t, action), dim=-1)
+        Q = self.Q(x)
+        return(Q)
+
+    def a_mu_std(self, h_t):
+        x = self.a(h_t)
+        mu = self.a_mu(x)
+        log_std = self.a_log_std_linear(x)
+        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
+        std = log_std.exp()
+        return(mu, std)
+
+    def evaluate_actor(self, h, epsilon=1e-6):
+        mu, std = self.forward(h)
+        dist = Normal(0, 1)
+        e = dist.sample(std.shape).to(self.args.device)
+        action = torch.tanh(mu + e * std)
+        log_prob = Normal(mu, std).log_prob(mu + e * std) - \
+            torch.log(1 - action.pow(2) + epsilon)
+        log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
+        return(action, log_prob)
+
+    def get_action(self, h):
+        mu, std = self.forward(h)
+        dist = Normal(0, 1)
+        e      = dist.sample(std.shape).to(self.args.device)
+        action = torch.tanh(mu + e * std).cpu()
+        return(action[0])
+    
+    
+        
     
         
         
