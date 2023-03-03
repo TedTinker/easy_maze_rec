@@ -79,7 +79,7 @@ class Agent:
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct?
         z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
-        forward_loss = errors.sum()
+        forward_loss = errors.mean()
         
         self.forward_opt.zero_grad()
         forward_loss.backward()
@@ -93,7 +93,7 @@ class Agent:
         else:                    curiosity = torch.zeros(rewards.shape)
         
         extrinsic = torch.mean(rewards*masks.detach()).item()
-        intrinsic_curiosity = curiosity.sum().item()
+        intrinsic_curiosity = curiosity.mean().item()
         print("Rewards: {}. Curiosity: {}.".format(rewards.shape, curiosity.shape))
         rewards += curiosity
         
@@ -130,7 +130,7 @@ class Agent:
         if self.args.alpha == None:
             _, log_pis = self.forward.evaluate_actor(hqs[:,:-1].detach())
             alpha_loss = -(self.log_alpha.cpu() * (log_pis.cpu() + self.target_entropy).detach().cpu())*masks.detach().cpu()
-            alpha_loss = alpha_loss.sum() / masks.sum()
+            alpha_loss = alpha_loss.mean() / masks.mean()
             self.alpha_opt.zero_grad()
             alpha_loss.backward()
             self.alpha_opt.step()
@@ -160,7 +160,7 @@ class Agent:
                 self.forward.get_Q_2(hqs[:,:-1].detach(), actions)).sum(-1).unsqueeze(-1)
             intrinsic_entropy = torch.mean((alpha * log_pis.cpu())*masks.detach().cpu()).item()
             actor_loss = (alpha * log_pis.cpu() - policy_prior_log_probs - Q.cpu())*masks.detach().cpu()
-            actor_loss = actor_loss.sum() / masks.sum()
+            actor_loss = actor_loss.mean() / masks.mean()
 
             self.forward_opt.zero_grad()
             actor_loss.backward()
