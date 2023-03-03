@@ -6,35 +6,7 @@ from itertools import accumulate
 from copy import deepcopy
 
 from utils import default_args
-from maze import T_Maze, action_size
 from agent import Agent
-
-
-
-def episode(agent, push = True):
-    done = False
-    t_maze = T_Maze()
-    steps = 0
-    with torch.no_grad():
-        hq = torch.zeros((1, 1, agent.args.h_size))     
-        zp = torch.normal(0, 1, (1, 1, agent.args.z_size))                         
-        a  = torch.zeros((1, action_size))
-        while(done == False):
-            steps += 1
-            o = t_maze.obs()      
-            
-            hp = agent.forward.h(zp, hq) 
-            zp, _, _ = agent.forward.zp_from_hq_tm1(hq)          
-            zq, _, _ = agent.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0))    
-            hq = agent.forward.h(zq, hq)                            
-            
-            a = agent.act(hq)   
-            action = a.squeeze(0).tolist()
-            r, spot_name, done = t_maze.action(action[0], action[1])
-            no = t_maze.obs()
-            if(steps >= agent.args.max_steps): done = True ; r = -1
-            if(push): agent.memory.push(o, a, r, no, done, done, agent)
-    return(r, spot_name)
 
 
 
@@ -65,7 +37,7 @@ class Trainer():
         E = manager.counter(total = self.args.epochs, desc = "{}:".format(self.title), unit = "ticks", color = "blue")
         while(True):
             E.update()
-            r, spot_name = episode(self.agent)
+            r, spot_name = self.agent.interaction_with_environment()
             l, e, ic, ie, dkl, naive, free = self.agent.learn(batch_size = self.args.batch_size, epochs = self.e)
             self.plot_dict["rewards"].append(r)
             self.plot_dict["spot_names"].append(spot_name)

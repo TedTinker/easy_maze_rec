@@ -15,6 +15,12 @@ from models import Forward, Actor, Critic
 
 
 
+import torch 
+
+from maze import T_Maze, action_size
+
+
+
 class Agent:
     
     def __init__(self, action_prior="normal", args = default_args):
@@ -23,7 +29,7 @@ class Agent:
         self.steps = 0
         self.action_size = action_size
         
-        self.target_entropy = self.args.target_entropy # -dim(A)
+        self.target_entropy = self.args.target_entropy 
         self.alpha = 1
         self.log_alpha = torch.tensor([0.0], requires_grad=True)
         self.alpha_opt = optim.Adam(params=[self.log_alpha], lr=self.args.alpha_lr, weight_decay=0) 
@@ -79,35 +85,10 @@ class Agent:
         
         
         # Train Forward
-        hqs = [] ; hq = torch.zeros((batch_size, 1, self.args.h_size))
-        pred_obs = []
-        mu_ps = [] ; std_ps = []
-        mu_qs = [] ; std_qs = []
-        for step in range(steps+1):
-            o = obs[:,step].unsqueeze(1).detach()     
-            prev_a = all_actions[:, step].unsqueeze(1).detach()    
-            
-            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)           
-            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
-            hq = self.forward.h(zq, hq)    
-
-            hqs.append(hq)      
-            if(step != steps):
-                mu_qs.append(mu_q) ; std_qs.append(std_q)
-                mu_ps.append(mu_p) ; std_ps.append(std_p) 
-                pred_obs.append(self.forward(hq))       
-        hqs = torch.cat(hqs, -2) 
-        mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
-        mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
-        pred_obs = torch.cat(pred_obs,-2)
+        pred_obs, dkls = self.learning_phase(batch_size, steps, obs, all_actions)
+        hqs = self.active_inference_phase(batch_size, steps, obs, all_actions)
                 
-        dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
-        
-        print("\n\n")
-        print("hqs:\t{}.\nobs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
-            hqs.shape, next_obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
-        print("\n\n")
-                            
+
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct?
         z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
@@ -258,5 +239,84 @@ class Agent:
         self.critic1_target.train()
         self.critic2.train()
         self.critic2_target.train()
+        
+        
+        
+    def learning_phase(self, batch_size, steps, obs, all_actions):
+        hq = torch.zeros((batch_size, 1, self.args.h_size))
+        pred_obs = []
+        mu_ps = [] ; std_ps = []
+        mu_qs = [] ; std_qs = []
+        for step in range(steps):
+            o = obs[:,step].unsqueeze(1).detach()     
+            prev_a = all_actions[:, step].unsqueeze(1).detach()    
+            
+            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)           
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
+            hq = self.forward.h(zq, hq)    
+
+            mu_qs.append(mu_q) ; std_qs.append(std_q)
+            mu_ps.append(mu_p) ; std_ps.append(std_p) 
+            pred_obs.append(self.forward(hq))       
+                
+        mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
+        mu_qs = torch.cat(mu_qs, -2) ; std_qs = torch.cat(std_qs, -2)
+        pred_obs = torch.cat(pred_obs,-2)
+                
+        dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
+
+        print("\n\n")
+        print("obs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
+            obs[:,1:].shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
+        print("\n\n")
+        return(pred_obs, dkls)
+            
+            
+
+    def active_inference_phase(self, batch_size, steps, obs, all_actions):
+        hqs = [] ; hq = torch.zeros((batch_size, 1, self.args.h_size))
+        for step in range(steps+1):
+            o = obs[:,step].unsqueeze(1).detach()     
+            prev_a = all_actions[:, step].unsqueeze(1).detach()    
+            
+            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
+            hq = self.forward.h(zq, hq)    
+
+            hqs.append(hq)
+                
+        hqs = torch.cat(hqs, -2)
+                
+        print("\n\n")
+        print("hqs:\t{}.".format(
+            hqs[:,1:].shape))
+        print("\n\n")
+        return(hqs)
+
+
+
+    def interaction_with_environment(self, push = True):
+        done = False
+        t_maze = T_Maze()
+        steps = 0
+        with torch.no_grad():
+            hq = torch.zeros((1, 1, self.args.h_size))     
+            zp = torch.normal(0, 1, (1, 1, self.args.z_size))                         
+            a  = torch.zeros((1, action_size))
+            while(done == False):
+                steps += 1
+                o = t_maze.obs()      
+                
+                hp = self.forward.h(zp, hq) 
+                zp, _, _ = self.forward.zp_from_hq_tm1(hq)          
+                zq, _, _ = self.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0))    
+                hq = self.forward.h(zq, hq)                            
+                
+                a = self.act(hp)   
+                action = a.squeeze(0).tolist()
+                r, spot_name, done = t_maze.action(action[0], action[1])
+                no = t_maze.obs()
+                if(steps >= self.args.max_steps): done = True ; r = -1
+                if(push): self.memory.push(o, a, r, no, done, done, self)
+        return(r, spot_name)
         
 # %%

@@ -40,12 +40,12 @@ parser.add_argument('--selection',          type=str,   default = "uniform")
 parser.add_argument('--power',              type=float, default = 1)
 
 # Training 
-parser.add_argument('--epochs',             type=int,   default = 10000)
+parser.add_argument('--epochs',             type=int,   default = 1000)
 parser.add_argument('--batch_size',         type=int,   default = 8)
 parser.add_argument('--GAMMA',              type=int,   default = .99)
 parser.add_argument("--d",                  type=int,   default = 2)        # Delay to train actors
 parser.add_argument("--alpha",              type=str,   default = 0)        # Soft-Actor-Critic entropy aim
-parser.add_argument("--target_entropy",     type=float, default = -2)       # Soft-Actor-Critic entropy aim
+parser.add_argument("--target_entropy",     type=float, default = -2)       # Soft-Actor-Critic entropy aim # -dim(A)
 parser.add_argument("--naive_eta",          type=float, default = .1)       # Scale curiosity
 parser.add_argument("--free_eta",           type=float, default = .005)     # Scale curiosity
 parser.add_argument("--tau",                type=float, default = .05)      # For soft-updating target critics
