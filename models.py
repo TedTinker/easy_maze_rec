@@ -46,7 +46,9 @@ class Forward(nn.Module):
             nn.Linear(args.h_size, obs_size),
             nn.Sigmoid())
         
-        self.Q        = nn.Sequential(
+        self.Q_1      = nn.Sequential(
+            nn.Linear(args.h_size + action_size, 1))
+        self.Q_2      = nn.Sequential(
             nn.Linear(args.h_size + action_size, 1))
         
         self.a = nn.Sequential(
@@ -63,7 +65,8 @@ class Forward(nn.Module):
         self.zp_std.apply(init_weights)
         self.new_o.apply(init_weights)
         self.pred_o.apply(init_weights)
-        self.Q.apply(init_weights)
+        self.Q_1.apply(init_weights)
+        self.Q_2.apply(init_weights)
         self.a.apply(init_weights)
         self.a_mu.apply(init_weights)
         self.a_log_std_linear.apply(init_weights)
@@ -94,9 +97,14 @@ class Forward(nn.Module):
     def predict_o(self, hq_tm1):
         return(self.pred_o(hq_tm1))
     
-    def get_Q(self, hq_t, action):
+    def get_Q_1(self, hq_t, action):
         x = torch.cat((hq_t, action), dim=-1)
-        Q = self.Q(x)
+        Q = self.Q_1(x)
+        return(Q)
+    
+    def get_Q_2(self, hq_t, action):
+        x = torch.cat((hq_t, action), dim=-1)
+        Q = self.Q_2(x)
         return(Q)
 
     def a_mu_std(self, h_t):
@@ -108,7 +116,7 @@ class Forward(nn.Module):
         return(mu, std)
 
     def evaluate_actor(self, h, epsilon=1e-6):
-        mu, std = self.forward(h)
+        mu, std = self.a_mu_std(h)
         dist = Normal(0, 1)
         e = dist.sample(std.shape).to(self.args.device)
         action = torch.tanh(mu + e * std)
@@ -118,84 +126,11 @@ class Forward(nn.Module):
         return(action, log_prob)
 
     def get_action(self, h):
-        mu, std = self.forward(h)
+        mu, std = self.a_mu_std(h)
         dist = Normal(0, 1)
         e      = dist.sample(std.shape).to(self.args.device)
         action = torch.tanh(mu + e * std).cpu()
         return(action[0])
-    
-    
-        
-    
-        
-        
-class Actor(nn.Module):
-
-    def __init__(self, args = default_args, log_std_min=-20, log_std_max=2):
-        super(Actor, self).__init__()
-        
-        self.args = args
-
-        self.log_std_min = log_std_min ; self.log_std_max = log_std_max
-                
-        self.lin = nn.Sequential(
-            nn.Linear(args.h_size, args.hidden),
-            nn.LeakyReLU())
-        self.mu = nn.Linear(args.hidden, action_size)
-        self.log_std_linear = nn.Linear(args.hidden, action_size)
-
-        self.lin.apply(init_weights)
-        self.mu.apply(init_weights)
-        self.log_std_linear.apply(init_weights)
-        self.to(self.args.device)
-
-    def forward(self, h):
-        x = self.lin(h)
-        mu = self.mu(x)
-        log_std = self.log_std_linear(x)
-        log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
-        return(mu, log_std)
-
-    def evaluate(self, h, epsilon=1e-6):
-        mu, log_std = self.forward(h)
-        std = log_std.exp()
-        dist = Normal(0, 1)
-        e = dist.sample(std.shape).to(self.args.device)
-        action = torch.tanh(mu + e * std)
-        log_prob = Normal(mu, std).log_prob(mu + e * std) - \
-            torch.log(1 - action.pow(2) + epsilon)
-        log_prob = torch.mean(log_prob, -1).unsqueeze(-1)
-        return(action, log_prob)
-
-    def get_action(self, h):
-        mu, log_std = self.forward(h)
-        std = log_std.exp()
-        dist = Normal(0, 1)
-        e      = dist.sample(std.shape).to(self.args.device)
-        action = torch.tanh(mu + e * std).cpu()
-        return(action[0])
-    
-    
-    
-class Critic(nn.Module):
-
-    def __init__(self, args = default_args):
-        super(Critic, self).__init__()
-        
-        self.args = args
-                        
-        self.lin = nn.Sequential(
-            nn.Linear(args.h_size + action_size, args.hidden),
-            nn.LeakyReLU(),
-            nn.Linear(args.hidden, 1))
-
-        self.lin.apply(init_weights)
-        self.to(args.device)
-
-    def forward(self, h, action):
-        x = torch.cat((h, action), dim=-1)
-        x = self.lin(x).to("cpu")
-        return(x)
     
 
 
@@ -210,23 +145,5 @@ if __name__ == "__main__":
     print(forward)
     print()
     print(torch_summary(forward, ((1,default_args.h_size))))
-    
-    
-
-    actor = Actor(args)
-    
-    print("\n\n")
-    print(actor)
-    print()
-    print(torch_summary(actor, ((1, default_args.h_size))))
-    
-    
-    
-    critic = Critic(args)
-    
-    print("\n\n")
-    print(critic)
-    print()
-    print(torch_summary(critic, ((1, 10, obs_size), (1, 10, action_size), (1, 10, action_size))))
 
 # %%
