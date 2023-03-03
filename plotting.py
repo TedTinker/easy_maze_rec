@@ -53,7 +53,7 @@ def many_min_max(min_max_list):
 
 def plots(plot_dicts, min_max_dict):
     start_time = datetime.datetime.now()
-    fig, axs = plt.subplots(11, len(plot_dicts), figsize = (10*len(plot_dicts), 75))
+    fig, axs = plt.subplots(9, len(plot_dicts), figsize = (10*len(plot_dicts), 75))
                 
     for i, plot_dict in enumerate(plot_dicts):
     
@@ -192,32 +192,6 @@ def plots(plot_dicts, min_max_dict):
             ax3.set_ylabel("Entropy")
         ax.legend(handles = handles)
         ax.set_title(plot_dict["title"] + "\nExtrinsic and Intrinsic Rewards, shared min/max")
-        
-        
-        
-        # Curiosities
-        naive_dict = get_quantiles(plot_dict, "naive")
-        free_dict = get_quantiles(plot_dict, "free")
-        
-        ax = axs[9,i] if len(plot_dicts) > 1 else axs[9]
-        handles = []
-        handles.append(awesome_plot(ax, naive_dict, "green", "Naive"))
-        ax.set_ylabel("Naive")
-        ax2 = ax.twinx()
-        handles.append(awesome_plot(ax2, free_dict, "red", "Free"))
-        ax2.set_ylabel("Free")
-        ax.legend(handles = handles)
-        ax.set_title(plot_dict["title"] + "\nCuriosities")
-        
-        ax = axs[10,i] if len(plot_dicts) > 1 else axs[10]
-        handles = []
-        handles.append(awesome_plot(ax, naive_dict, "green", "Naive", min_max_dict["naive"]))
-        ax.set_ylabel("Naive")
-        ax2 = ax.twinx()
-        handles.append(awesome_plot(ax2, free_dict, "red", "Free", min_max_dict["free"]))
-        ax2.set_ylabel("Free")
-        ax.legend(handles = handles)
-        ax.set_title(plot_dict["title"] + "\nCuriosities, shared min/max")
         
         
         

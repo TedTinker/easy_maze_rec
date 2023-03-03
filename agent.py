@@ -74,27 +74,23 @@ class Agent:
         
         
         # Train Forward
-        pred_obs, dkls, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
+        pred_obs, dkls, _ = self.learning_phase(batch_size, steps, obs, all_actions)
 
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct?
         z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
         forward_loss = errors.sum()
         
-
-        
-        
-        
-        dkl_changes = 0 ; dkl_change = 0 # No longer relevent
-        
+        self.forward_opt.zero_grad()
+        forward_loss.backward()
+        self.forward_opt.step()
+            
             
         
         # Get curiosity          
-        naive_curiosity = self.args.naive_eta * errors.sum(-1).detach()
-        free_curiosity = self.args.free_eta * z_errors.sum(-1).detach()
-        if(self.args.curiosity == "naive"):  curiosity = naive_curiosity.unsqueeze(-1)
-        elif(self.args.curiosity == "free"): curiosity = free_curiosity.unsqueeze(-1)
-        else:                                curiosity = torch.zeros(rewards.shape)
+        curiosity = self.args.eta * errors.sum(-1).detach()
+        if(self.args.curiosity): curiosity = curiosity.unsqueeze(-1)
+        else:                    curiosity = torch.zeros(rewards.shape)
         
         extrinsic = torch.mean(rewards*masks.detach()).item()
         intrinsic_curiosity = curiosity.sum().item()
@@ -104,6 +100,7 @@ class Agent:
                 
                 
         # Train critics
+        _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
         new_actions, log_pis_next = self.forward.evaluate_actor(hqs[:,1:])
         print("\n\n")
         print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
@@ -122,10 +119,13 @@ class Agent:
         Q_2 = self.forward.get_Q_2(hqs[:,:-1], actions.detach())
         critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach().cpu(), Q_targets.detach()*masks.detach().cpu())
         critic_loss = critic2_loss + critic1_loss
-        forward_loss += critic_loss.sum()
 
-
-
+        self.forward_opt.zero_grad()
+        critic_loss.backward()
+        self.forward_opt.step()
+        
+        
+        
         # Train alpha
         if self.args.alpha == None:
             _, log_pis = self.forward.evaluate_actor(hqs[:,:-1].detach())
@@ -145,6 +145,7 @@ class Agent:
             if self.args.alpha == None: alpha = self.alpha 
             else:                       
                 alpha = self.args.alpha
+            _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
             actions, log_pis = self.forward.evaluate_actor(hqs[:,:-1])
 
             if self._action_prior == "normal":
@@ -160,18 +161,16 @@ class Agent:
             intrinsic_entropy = torch.mean((alpha * log_pis.cpu())*masks.detach().cpu()).item()
             actor_loss = (alpha * log_pis.cpu() - policy_prior_log_probs - Q.cpu())*masks.detach().cpu()
             actor_loss = actor_loss.sum() / masks.sum()
-            
-            forward_loss += actor_loss
+
+            self.forward_opt.zero_grad()
+            actor_loss.backward()
+            self.forward_opt.step()
 
             self.soft_update(self.forward, self.forward_target, self.args.tau)
             
         else:
             intrinsic_entropy = None
             actor_loss = None
-        
-        self.forward_opt.zero_grad()
-        forward_loss.backward()
-        self.forward_opt.step()
         
         obs_loss = obs_errors.sum().item()
         z_loss = z_errors.sum().item()
@@ -181,7 +180,7 @@ class Agent:
         if(critic2_loss != None): critic2_loss = critic2_loss.item()
         losses = np.array([[obs_loss, z_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]])
         
-        return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy, dkl_change, naive_curiosity.sum().detach(), free_curiosity.sum().detach())
+        return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy)
                      
     def soft_update(self, local_model, target_model, tau):
         for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):

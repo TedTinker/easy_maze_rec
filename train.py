@@ -28,8 +28,7 @@ class Trainer():
             "alpha" : [], "actor" : [], 
             "critic_1" : [], "critic_2" : [], 
             "extrinsic" : [], "intrinsic_curiosity" : [], 
-            "intrinsic_entropy" : [], "dkl_change" : [],
-            "naive" : [], "free" : []}
+            "intrinsic_entropy" : []}
 
     def train(self):
         self.agent.train()
@@ -38,7 +37,7 @@ class Trainer():
         while(True):
             E.update()
             r, spot_name = self.agent.interaction_with_environment()
-            l, e, ic, ie, dkl, naive, free = self.agent.learn(batch_size = self.args.batch_size, epochs = self.e)
+            l, e, ic, ie = self.agent.learn(batch_size = self.args.batch_size, epochs = self.e)
             self.plot_dict["rewards"].append(r)
             self.plot_dict["spot_names"].append(spot_name)
             self.plot_dict["obs"].append(l[0][0])
@@ -50,9 +49,6 @@ class Trainer():
             self.plot_dict["extrinsic"].append(e)
             self.plot_dict["intrinsic_curiosity"].append(ic)
             self.plot_dict["intrinsic_entropy"].append(ie)
-            self.plot_dict["dkl_change"].append(dkl)
-            self.plot_dict["naive"].append(naive)
-            self.plot_dict["free"].append(free)
             self.e += 1
             if(self.e >= self.args.epochs): 
                 print("\n\nDone training!")

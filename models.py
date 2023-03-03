@@ -56,8 +56,6 @@ class Forward(nn.Module):
             nn.LeakyReLU())
         self.a_mu = nn.Linear(args.hidden, action_size)
         self.a_log_std_linear = nn.Linear(args.hidden, action_size)
-
-
         
         self.zp_mu.apply(init_weights)
         self.zp_std.apply(init_weights)
@@ -76,7 +74,7 @@ class Forward(nn.Module):
         mu = self.zp_mu(hq_tm1)
         std = self.zp_std(hq_tm1)
         dist = Normal(0, 1)
-        e      = dist.sample(std.shape)
+        e = dist.sample(std.shape)
         return(mu + e * std, mu, std)
     
     def zq_from_hq_tm1(self, hq_tm1, o_t, prev_action):
@@ -128,7 +126,7 @@ class Forward(nn.Module):
     def get_action(self, h):
         mu, std = self.a_mu_std(h)
         dist = Normal(0, 1)
-        e      = dist.sample(std.shape).to(self.args.device)
+        e = dist.sample(std.shape).to(self.args.device)
         action = torch.tanh(mu + e * std).cpu()
         return(action[0])
     
