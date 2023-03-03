@@ -47,13 +47,12 @@ class Forward(nn.Module):
             nn.Sigmoid())
         
         self.Q_1      = nn.Sequential(
-            nn.Linear(args.h_size + action_size, 1))
+            nn.Linear(args.h_size + action_size, 1),)
         self.Q_2      = nn.Sequential(
             nn.Linear(args.h_size + action_size, 1))
         
         self.a = nn.Sequential(
-            nn.Linear(args.h_size, args.hidden),
-            nn.LeakyReLU())
+            nn.Linear(args.h_size, args.hidden))
         self.a_mu = nn.Linear(args.hidden, action_size)
         self.a_log_std_linear = nn.Linear(args.hidden, action_size)
         

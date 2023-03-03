@@ -172,7 +172,7 @@ def plots(plot_dicts, min_max_dict):
         if((ent_dict["min"] != ent_dict["max"]).all()):
             ax3 = ax.twinx()
             ax3.spines["right"].set_position(("axes", 1.08))
-            handles.append(awesome_plot(ax3, ent_dict, "blue", "Entropy"))
+            handles.append(awesome_plot(ax3, ent_dict, "black", "Entropy"))
             ax3.set_ylabel("Entropy")
         ax.legend(handles = handles)
         ax.set_title(plot_dict["title"] + "\nExtrinsic and Intrinsic Rewards")
@@ -188,7 +188,7 @@ def plots(plot_dicts, min_max_dict):
         if((ent_dict["min"] != ent_dict["max"]).all()):
             ax3 = ax.twinx()
             ax3.spines["right"].set_position(("axes", 1.08))
-            handles.append(awesome_plot(ax3, ent_dict, "blue", "Entropy", min_max_dict["intrinsic_entropy"]))
+            handles.append(awesome_plot(ax3, ent_dict, "black", "Entropy", min_max_dict["intrinsic_entropy"]))
             ax3.set_ylabel("Entropy")
         ax.legend(handles = handles)
         ax.set_title(plot_dict["title"] + "\nExtrinsic and Intrinsic Rewards, shared min/max")
