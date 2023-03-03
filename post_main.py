@@ -2,6 +2,7 @@
 
 import os
 import pickle
+from time import sleep
 
 from utils import args, folder
 from plotting import plots
@@ -57,6 +58,7 @@ else:
     
     print(order)
 
+    sleep(2)
     for name in order:
         with open("saved/" + name + "/" + "plot_dict.pickle", "rb") as handle: 
             plot_dicts.append(pickle.load(handle))

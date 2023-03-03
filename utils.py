@@ -46,7 +46,7 @@ parser.add_argument('--GAMMA',              type=int,   default = .99)
 parser.add_argument("--d",                  type=int,   default = 2)        # Delay to train actors
 parser.add_argument("--alpha",              type=str,   default = 0)        # Soft-Actor-Critic entropy aim
 parser.add_argument("--target_entropy",     type=float, default = -2)       # Soft-Actor-Critic entropy aim # -dim(A)
-parser.add_argument("--eta",          type=float, default = .1)       # Scale curiosity
+parser.add_argument("--eta",                type=float, default = .1)       # Scale curiosity
 parser.add_argument("--tau",                type=float, default = .05)      # For soft-updating target critics
 parser.add_argument("--sample_elbo",        type=int,   default = 5)        # Samples for elbo
 parser.add_argument("--curiosity",          type=str,   default = False)   # Which kind of curiosity
@@ -70,13 +70,12 @@ if(default_args.alpha == "None"): default_args.alpha = None
 if(args.alpha == "None"):         args.alpha = None
 
 for arg in vars(default_args):
-    if(getattr(default_args, arg) == "None"):  default_args[arg] = None
-    if(getattr(default_args, arg) == "True"):  default_args[arg] = True
-    if(getattr(default_args, arg) == "False"): default_args[arg] = False
-    
-    if(getattr(args, arg) == "None"):  args[arg] = None
-    if(getattr(args, arg) == "True"):  args[arg] = True
-    if(getattr(args, arg) == "False"): args[arg] = False
+    if(getattr(default_args, arg) == "None"):  default_args.arg = None
+    if(getattr(default_args, arg) == "True"):  default_args.arg = True
+    if(getattr(default_args, arg) == "False"): default_args.arg = False
+    if(getattr(args, arg) == "None"):  args.arg = None
+    if(getattr(args, arg) == "True"):  args.arg = True
+    if(getattr(args, arg) == "False"): args.arg = False
 
 
 
