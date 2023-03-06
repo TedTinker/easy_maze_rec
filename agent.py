@@ -78,7 +78,7 @@ class Agent:
                 r, spot_name, done = t_maze.action(action[0], action[1], verbose = verbose)
                 no = t_maze.obs()
                 if(steps >= self.args.max_steps): done = True ; r = -1
-                if(push): self.memory.push(o, a, r, no, done, done, self)
+                if(push): self.memory.push(o, a, r, no, done, done)
         if(verbose): print("\n\n")
         return(r, spot_name)
     

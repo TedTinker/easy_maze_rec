@@ -32,9 +32,6 @@ parser.add_argument('--alpha_lr',           type=float, default = .01)
 
 # Memory buffer
 parser.add_argument('--capacity',           type=int,   default = 100)
-parser.add_argument('--replacement',        type=str,   default = "index")
-parser.add_argument('--selection',          type=str,   default = "uniform")
-parser.add_argument('--power',              type=float, default = 1)
 
 # Training 
 parser.add_argument('--epochs',             type=int,   default = 1000)
