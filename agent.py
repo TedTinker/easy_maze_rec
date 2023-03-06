@@ -125,6 +125,7 @@ class Agent:
         self.steps += 1
 
         obs, actions, rewards, dones, masks = self.memory.sample(batch_size)
+        
         batch_size = rewards.shape[0] ; steps = rewards.shape[1]
         
         next_obs = obs[:,1:]
@@ -177,13 +178,13 @@ class Agent:
         print("\n\n")
         print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
         print("\n\n")
-        if self.args.alpha == None: Q_targets = rewards.cpu() + (self.args.GAMMA * (1 - dones.cpu()) * (Q_target_next.cpu() - self.alpha * log_pis_next.cpu()))
-        else:                       Q_targets = rewards.cpu() + (self.args.GAMMA * (1 - dones.cpu()) * (Q_target_next.cpu() - self.args.alpha * log_pis_next.cpu()))
+        if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
+        else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
         
         Q_1 = self.forward.get_Q_1(hqs[:,:-1], actions.detach())
-        critic1_loss = 0.5*F.mse_loss(Q_1*masks.detach().cpu(), Q_targets.detach()*masks.detach().cpu())
+        critic1_loss = 0.5*F.mse_loss(Q_1*masks.detach(), Q_targets.detach()*masks.detach())
         Q_2 = self.forward.get_Q_2(hqs[:,:-1], actions.detach())
-        critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach().cpu(), Q_targets.detach()*masks.detach().cpu())
+        critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach(), Q_targets.detach()*masks.detach())
         critic_loss = critic2_loss + critic1_loss
 
         self.forward_opt.zero_grad()
@@ -195,7 +196,7 @@ class Agent:
         # Train alpha
         if self.args.alpha == None:
             _, log_pis = self.forward.evaluate_actor(hqs[:,:-1].detach())
-            alpha_loss = -(self.log_alpha.cpu() * (log_pis.cpu() + self.target_entropy).detach().cpu())*masks.detach().cpu()
+            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy).detach())*masks.detach()
             alpha_loss = alpha_loss.mean() / masks.mean()
             self.alpha_opt.zero_grad()
             alpha_loss.backward()
@@ -218,14 +219,14 @@ class Agent:
                 loc = torch.zeros(self.action_size, dtype=torch.float64)
                 scale_tril = torch.tensor([[1, 0], [1, 1]], dtype=torch.float64)
                 policy_prior = MultivariateNormal(loc=loc, scale_tril=scale_tril)
-                policy_prior_log_probs = policy_prior.log_prob(actions.cpu()).unsqueeze(-1)
+                policy_prior_log_probs = policy_prior.log_prob(actions).unsqueeze(-1)
             elif self._action_prior == "uniform":
                 policy_prior_log_probs = 0.0
             Q = torch.min(
                 self.forward.get_Q_1(hqs[:,:-1].detach(), actions), 
                 self.forward.get_Q_2(hqs[:,:-1].detach(), actions)).sum(-1).unsqueeze(-1)
-            intrinsic_entropy = torch.mean((alpha * log_pis.cpu())*masks.detach().cpu()).item()
-            actor_loss = (alpha * log_pis.cpu() - policy_prior_log_probs - Q.cpu())*masks.detach().cpu()
+            intrinsic_entropy = torch.mean((alpha * log_pis)*masks.detach()).item()
+            actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks.detach()
             actor_loss = actor_loss.mean() / masks.mean()
 
             self.forward_opt.zero_grad()

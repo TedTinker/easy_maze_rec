@@ -126,7 +126,7 @@ class Forward(nn.Module):
         mu, std = self.a_mu_std(h)
         dist = Normal(0, 1)
         e = dist.sample(std.shape).to(self.args.device)
-        action = torch.tanh(mu + e * std).cpu()
+        action = torch.tanh(mu + e * std)
         return(action[0])
     
 
