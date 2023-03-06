@@ -103,7 +103,8 @@ class Model(nn.Module):
         x = torch.cat((hq_t, action), dim=-1)
         Q = self.Q_2(x)
         return(Q)
-
+    
+    # Ted got this from: https://github.com/BY571/Soft-Actor-Critic-and-Extensions
     def a_mu_std(self, h_t):
         x = self.a(h_t)
         mu = self.a_mu(x)
