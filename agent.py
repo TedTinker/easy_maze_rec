@@ -54,7 +54,7 @@ class Agent:
     
     
     
-    def interaction_with_environment(self, push = True):
+    def interaction_with_environment(self, push = True, verbose = True):
         done = False
         t_maze = T_Maze()
         steps = 0
@@ -62,6 +62,8 @@ class Agent:
             hq = torch.zeros((1, 1, self.args.h_size))     
             zp = torch.normal(0, 1, (1, 1, self.args.z_size))                         
             a  = torch.zeros((1, action_size))
+            if(verbose): print("\n\nNew Episode!\n\n")
+            if(verbose): print(t_maze)
             while(done == False):
                 steps += 1
                 o = t_maze.obs()      
@@ -73,10 +75,11 @@ class Agent:
                 
                 a = self.act(hp)   
                 action = a.squeeze(0).tolist()
-                r, spot_name, done = t_maze.action(action[0], action[1])
+                r, spot_name, done = t_maze.action(action[0], action[1], verbose = verbose)
                 no = t_maze.obs()
                 if(steps >= self.args.max_steps): done = True ; r = -1
                 if(push): self.memory.push(o, a, r, no, done, done, self)
+        if(verbose): print("\n\n")
         return(r, spot_name)
     
     
@@ -108,7 +111,7 @@ class Agent:
         dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
 
         print("\n\n")
-        print("hqs:\t{}.\nobs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
+        print("hqs:\t{}.\nnext obs:\t{}.\npred obs:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
             hqs[:,1:].shape, obs[:,1:].shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
         print("\n\n")
         return(pred_obs, dkls, hqs)
@@ -169,13 +172,11 @@ class Agent:
         # Train critics
         _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
         new_actions, log_pis_next = self.forward.evaluate_actor(hqs[:,1:])
-        print("\n\n")
         print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
         print("\n\n")
         Q_target1_next = self.forward_target.get_Q_1(hqs[:,1:].detach(), new_actions.detach())
         Q_target2_next = self.forward_target.get_Q_2(hqs[:,1:].detach(), new_actions.detach())
         Q_target_next = torch.min(Q_target1_next, Q_target2_next)
-        print("\n\n")
         print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
         print("\n\n")
         if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))

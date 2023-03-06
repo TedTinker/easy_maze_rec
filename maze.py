@@ -22,29 +22,32 @@ class T_Maze:
         self.agent_pos = (0, 0)
         
     def obs(self):
+        pos = [1 if spot.pos == self.agent_pos else 0 for spot in self.maze]
         right = 0 ; left = 0 ; up = 0 ; down = 0
-        for spot in self.maze:
+        for i, spot in enumerate(self.maze):
             if(spot.pos == (self.agent_pos[0]+1, self.agent_pos[1])): right = 1 
             if(spot.pos == (self.agent_pos[0]-1, self.agent_pos[1])): left = 1 
             if(spot.pos == (self.agent_pos[0], self.agent_pos[1]+1)): up = 1 
             if(spot.pos == (self.agent_pos[0], self.agent_pos[1]-1)): down = 1 
-        return(torch.tensor([right, left, up, down]).unsqueeze(0).float())
+        pos += [right, left, up, down]
+        return(torch.tensor(pos).unsqueeze(0).float())
         
-    def action(self, x, y):
+    def action(self, x, y, verbose = False):
+        if(verbose): print("\n\nAction: x {}, y {}.".format(x, y))
         if(abs(x) > abs(y)): y = 0 ; x = 1 if x > 0 else -1
         else:                x = 0 ; y = 1 if y > 0 else -1 
+        if(verbose): print("Real action: x {}, y {}.".format(x, y))
         new_pos = (self.agent_pos[0] + x, self.agent_pos[1] + y)
+        reward = 0 ; spot_name = "NONE" ; done = False
         for spot in self.maze:
             if(spot.pos == new_pos):
-                self.agent_pos = new_pos 
-                if(spot.exit_reward == None):
-                    return(0, spot.name, False)
-                else:
-                    if(type(spot.exit_reward) == tuple):
-                        return(choice(spot.exit_reward), spot.name, True)
-                    else:
-                        return(spot.exit_reward, spot.name, True)
-        return(-1, "NONE", False)    
+                self.agent_pos = new_pos ; spot_name = spot.name
+                if(spot.exit_reward != None):
+                    done = True
+                    if(type(spot.exit_reward) == tuple): reward = choice(spot.exit_reward)
+                    else:                                reward = spot.exit_reward
+        if(verbose): print("\n{}\n".format(self))
+        return(reward, spot_name, done)    
     
     def __str__(self):
         to_print = ""
