@@ -144,16 +144,12 @@ class Agent:
         
         
         # Train Model
-        pred_obs, dkls, _ = self.learning_phase(batch_size, steps, obs, all_actions)
+        pred_obs, dkls, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
 
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct? Not "cross entropy"
         z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
         model_loss = errors.mean()
-        
-        self.model_opt.zero_grad()
-        model_loss.backward()
-        self.model_opt.step()
             
             
         
@@ -170,17 +166,17 @@ class Agent:
                 
                 
         # Train critics
-        _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
-        new_actions, log_pis_next = self.model.evaluate_actor(hqs[:,1:])
-        print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
-        print("\n\n")
-        Q_target1_next = self.model_target.get_Q_1(hqs[:,1:].detach(), new_actions.detach())
-        Q_target2_next = self.model_target.get_Q_2(hqs[:,1:].detach(), new_actions.detach())
-        Q_target_next = torch.min(Q_target1_next, Q_target2_next)
-        print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
-        print("\n\n")
-        if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
-        else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
+        with torch.no_grad():
+            new_actions, log_pis_next = self.model.evaluate_actor(hqs[:,1:])
+            print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
+            print("\n\n")
+            Q_target1_next = self.model_target.get_Q_1(hqs[:,1:].detach(), new_actions.detach())
+            Q_target2_next = self.model_target.get_Q_2(hqs[:,1:].detach(), new_actions.detach())
+            Q_target_next = torch.min(Q_target1_next, Q_target2_next)
+            print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
+            print("\n\n")
+            if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
+            else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
         
         Q_1 = self.model.get_Q_1(hqs[:,:-1], actions.detach())
         critic1_loss = 0.5*F.mse_loss(Q_1*masks.detach(), Q_targets.detach()*masks.detach())
@@ -188,9 +184,7 @@ class Agent:
         critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach(), Q_targets.detach()*masks.detach())
         critic_loss = critic2_loss + critic1_loss
 
-        self.model_opt.zero_grad()
-        critic_loss.backward()
-        self.model_opt.step()
+        model_loss += critic_loss
         
         self.soft_update(self.model, self.model_target, self.args.tau)
         
@@ -215,7 +209,6 @@ class Agent:
             if self.args.alpha == None: alpha = self.alpha 
             else:                       
                 alpha = self.args.alpha
-            _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
             actions, log_pis = self.model.evaluate_actor(hqs[:,:-1])
 
             if self._action_prior == "normal":
@@ -232,13 +225,20 @@ class Agent:
             actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks.detach()
             actor_loss = actor_loss.mean() / masks.mean()
 
-            self.model_opt.zero_grad()
-            actor_loss.backward()
-            self.model_opt.step()
+            model_loss += actor_loss 
             
         else:
             intrinsic_entropy = None
             actor_loss = None
+            
+            
+        
+        # Finally, backpropogate!
+        self.model_opt.zero_grad()
+        model_loss.backward()
+        self.model_opt.step()
+        
+        
         
         obs_loss = obs_errors.sum().item()
         z_loss = z_errors.sum().item()
