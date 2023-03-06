@@ -11,7 +11,7 @@ import numpy as np
 from utils import default_args, dkl
 from maze import action_size
 from buffer import RecurrentReplayBuffer
-from models import Forward
+from models import Model
 
 
 
@@ -38,10 +38,10 @@ class Agent:
         self.eta = 1
         self.log_eta = torch.tensor([0.0], requires_grad=True)
         
-        self.forward = Forward(self.args)
-        self.forward_opt = optim.Adam(self.forward.parameters(), lr=self.args.forward_lr, weight_decay=0)   
-        self.forward_target = Forward(self.args)
-        self.forward_target.load_state_dict(self.forward.state_dict())
+        self.model = Model(self.args)
+        self.model_opt = optim.Adam(self.model.parameters(), lr=self.args.model_lr, weight_decay=0)   
+        self.model_target = Model(self.args)
+        self.model_target.load_state_dict(self.model.state_dict())
         
         self.restart_memory()
         
@@ -49,7 +49,7 @@ class Agent:
         self.memory = RecurrentReplayBuffer(self.args)
 
     def act(self, h):
-        action = self.forward.get_action(h)
+        action = self.model.get_action(h)
         return action
     
     
@@ -68,10 +68,10 @@ class Agent:
                 steps += 1
                 o = t_maze.obs()      
                 
-                hp = self.forward.h(zp, hq) 
-                zp, _, _ = self.forward.zp_from_hq_tm1(hq)          
-                zq, _, _ = self.forward.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0))    
-                hq = self.forward.h(zq, hq)                            
+                hp = self.model.h(zp, hq) 
+                zp, _, _ = self.model.zp_from_hq_tm1(hq)          
+                zq, _, _ = self.model.zq_from_hq_tm1(hq, o.unsqueeze(0), a.unsqueeze(0))    
+                hq = self.model.h(zq, hq)                            
                 
                 a = self.act(hp)   
                 action = a.squeeze(0).tolist()
@@ -93,15 +93,15 @@ class Agent:
             o = obs[:,step].unsqueeze(1).detach()     
             prev_a = all_actions[:, step].unsqueeze(1).detach()    
             
-            zp, mu_p, std_p = self.forward.zp_from_hq_tm1(hq)           
-            zq, mu_q, std_q = self.forward.zq_from_hq_tm1(hq, o, prev_a) 
-            hq = self.forward.h(zq, hq)    
+            zp, mu_p, std_p = self.model.zp_from_hq_tm1(hq)           
+            zq, mu_q, std_q = self.model.zq_from_hq_tm1(hq, o, prev_a) 
+            hq = self.model.h(zq, hq)    
 
             hqs.append(hq)
             if(step != steps):
                 mu_qs.append(mu_q) ; std_qs.append(std_q)
                 mu_ps.append(mu_p) ; std_ps.append(std_p) 
-                pred_obs.append(self.forward.predict_o(hq))       
+                pred_obs.append(self.model.predict_o(hq))       
                 
         hqs = torch.cat(hqs, -2)
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
@@ -143,17 +143,17 @@ class Agent:
                 
         
         
-        # Train Forward
+        # Train Model
         pred_obs, dkls, _ = self.learning_phase(batch_size, steps, obs, all_actions)
 
         obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct? Not "cross entropy"
         z_errors = dkls
         errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
-        forward_loss = errors.mean()
+        model_loss = errors.mean()
         
-        self.forward_opt.zero_grad()
-        forward_loss.backward()
-        self.forward_opt.step()
+        self.model_opt.zero_grad()
+        model_loss.backward()
+        self.model_opt.step()
             
             
         
@@ -171,32 +171,34 @@ class Agent:
                 
         # Train critics
         _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
-        new_actions, log_pis_next = self.forward.evaluate_actor(hqs[:,1:])
+        new_actions, log_pis_next = self.model.evaluate_actor(hqs[:,1:])
         print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
         print("\n\n")
-        Q_target1_next = self.forward_target.get_Q_1(hqs[:,1:].detach(), new_actions.detach())
-        Q_target2_next = self.forward_target.get_Q_2(hqs[:,1:].detach(), new_actions.detach())
+        Q_target1_next = self.model_target.get_Q_1(hqs[:,1:].detach(), new_actions.detach())
+        Q_target2_next = self.model_target.get_Q_2(hqs[:,1:].detach(), new_actions.detach())
         Q_target_next = torch.min(Q_target1_next, Q_target2_next)
         print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
         print("\n\n")
         if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
         else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
         
-        Q_1 = self.forward.get_Q_1(hqs[:,:-1], actions.detach())
+        Q_1 = self.model.get_Q_1(hqs[:,:-1], actions.detach())
         critic1_loss = 0.5*F.mse_loss(Q_1*masks.detach(), Q_targets.detach()*masks.detach())
-        Q_2 = self.forward.get_Q_2(hqs[:,:-1], actions.detach())
+        Q_2 = self.model.get_Q_2(hqs[:,:-1], actions.detach())
         critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach(), Q_targets.detach()*masks.detach())
         critic_loss = critic2_loss + critic1_loss
 
-        self.forward_opt.zero_grad()
+        self.model_opt.zero_grad()
         critic_loss.backward()
-        self.forward_opt.step()
+        self.model_opt.step()
+        
+        self.soft_update(self.model, self.model_target, self.args.tau)
         
         
         
         # Train alpha
         if self.args.alpha == None:
-            _, log_pis = self.forward.evaluate_actor(hqs[:,:-1].detach())
+            _, log_pis = self.model.evaluate_actor(hqs[:,:-1].detach())
             alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy).detach())*masks.detach()
             alpha_loss = alpha_loss.mean() / masks.mean()
             self.alpha_opt.zero_grad()
@@ -214,7 +216,7 @@ class Agent:
             else:                       
                 alpha = self.args.alpha
             _, _, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
-            actions, log_pis = self.forward.evaluate_actor(hqs[:,:-1])
+            actions, log_pis = self.model.evaluate_actor(hqs[:,:-1])
 
             if self._action_prior == "normal":
                 loc = torch.zeros(self.action_size, dtype=torch.float64)
@@ -224,17 +226,15 @@ class Agent:
             elif self._action_prior == "uniform":
                 policy_prior_log_probs = 0.0
             Q = torch.min(
-                self.forward.get_Q_1(hqs[:,:-1].detach(), actions), 
-                self.forward.get_Q_2(hqs[:,:-1].detach(), actions)).sum(-1).unsqueeze(-1)
+                self.model.get_Q_1(hqs[:,:-1].detach(), actions), 
+                self.model.get_Q_2(hqs[:,:-1].detach(), actions)).sum(-1).unsqueeze(-1)
             intrinsic_entropy = torch.mean((alpha * log_pis)*masks.detach()).item()
             actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks.detach()
             actor_loss = actor_loss.mean() / masks.mean()
 
-            self.forward_opt.zero_grad()
+            self.model_opt.zero_grad()
             actor_loss.backward()
-            self.forward_opt.step()
-
-            self.soft_update(self.forward, self.forward_target, self.args.tau)
+            self.model_opt.step()
             
         else:
             intrinsic_entropy = None
@@ -255,17 +255,17 @@ class Agent:
             target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
 
     def state_dict(self):
-        return(self.forward.state_dict())
+        return(self.model.state_dict())
 
     def load_state_dict(self, state_dict):
-        self.forward.load_state_dict(state_dict[0])
+        self.model.load_state_dict(state_dict[0])
         self.memory = RecurrentReplayBuffer(self.args)
 
     def eval(self):
-        self.forward.eval()
+        self.model.eval()
 
     def train(self):
-        self.forward.train()
+        self.model.train()
         
         
         

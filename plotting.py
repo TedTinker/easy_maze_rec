@@ -114,7 +114,7 @@ def plots(plot_dicts, min_max_dict):
         h2 = awesome_plot(ax2, z_dict, "red", "Z")
         ax2.set_ylabel("Z Loss")
         ax.legend(handles = [h1, h2])
-        ax.set_title(plot_dict["title"] + "\nForward Losses")
+        ax.set_title(plot_dict["title"] + "\nModelLosses")
         
         ax = axs[4,i] if len(plot_dicts) > 1 else axs[4]
         h1 = awesome_plot(ax, obs_dict, "green", "OBS", min_max_dict["obs"])
@@ -123,7 +123,7 @@ def plots(plot_dicts, min_max_dict):
         h2 = awesome_plot(ax2, z_dict, "red", "Z", min_max_dict["z"])
         ax2.set_ylabel("Z Loss")
         ax.legend(handles = [h1, h2])
-        ax.set_title(plot_dict["title"] + "\nForward Losses, shared min/max")
+        ax.set_title(plot_dict["title"] + "\nModel Losses, shared min/max")
         
         ax = axs[5,i] if len(plot_dicts) > 1 else axs[5]
         h1 = awesome_plot(ax, actor_dict, "red", "Actor")

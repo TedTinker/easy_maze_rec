@@ -12,10 +12,10 @@ from maze import obs_size, action_size
 
 
 
-class Forward(nn.Module):
+class Model(nn.Module):
 
     def __init__(self, args = default_args, log_std_min=-20, log_std_max=2):
-        super(Forward, self).__init__()
+        super(Model, self).__init__()
 
         self.args = args
         self.log_std_min = log_std_min ; self.log_std_max = log_std_max
@@ -52,9 +52,9 @@ class Forward(nn.Module):
             nn.Linear(args.h_size + action_size, 1))
         
         self.a = nn.Sequential(
-            nn.Linear(args.h_size, args.hidden))
-        self.a_mu = nn.Linear(args.hidden, action_size)
-        self.a_log_std_linear = nn.Linear(args.hidden, action_size)
+            nn.Linear(args.h_size, args.h_size))
+        self.a_mu = nn.Linear(args.h_size, action_size)
+        self.a_log_std_linear = nn.Linear(args.h_size, action_size)
         
         self.zp_mu.apply(init_weights)
         self.zp_std.apply(init_weights)
@@ -136,11 +136,11 @@ if __name__ == "__main__":
     args = default_args
     args.device = "cuda"
     
-    forward = Forward(args)
+    model = Model(args)
     
     print("\n\n")
-    print(forward)
+    print(model)
     print()
-    print(torch_summary(forward, ((1,default_args.h_size))))
+    print(torch_summary(model, ((1,default_args.h_size))))
 
 # %%
