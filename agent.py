@@ -17,7 +17,7 @@ from models import Model
 
 import torch 
 
-from maze import T_Maze, action_size
+from maze import T_Maze, action_size, obs_size
 
 
 
@@ -146,15 +146,16 @@ class Agent:
         # Train Model
         pred_obs, dkls, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
 
-        obs_errors = F.mse_loss(pred_obs * masks, next_obs * masks, reduction = "none") 
+        obs_errors = F.binary_cross_entropy_with_logits(pred_obs, next_obs, reduction = "none") * masks
         z_errors = dkls * masks
         print("obs errors: {}. z_errors: {}.".format(obs_errors.shape, z_errors.shape))
-        model_loss = obs_errors.sum() + z_errors.sum() 
+        errors = torch.concat([obs_errors, z_errors], -1)
+        model_loss = errors.sum()
             
             
         
         # Get curiosity          
-        curiosity = self.args.eta * z_errors.sum(-1)
+        curiosity = self.args.eta * errors.sum(-1)
         if(self.args.curiosity): curiosity = curiosity.unsqueeze(-1)
         else:                    curiosity = torch.zeros(rewards.shape)
         
@@ -172,7 +173,7 @@ class Agent:
             print("\n\n")
             Q_target1_next = self.model_target.get_Q_1(hqs[:,1:], new_actions)
             Q_target2_next = self.model_target.get_Q_2(hqs[:,1:], new_actions)
-            Q_target_next = torch.min(Q_target1_next, Q_target2_next)
+            Q_target_next = torch.min(Q_target1_next, Q_target2_next).detach()
             print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
             print("\n\n")
             if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
@@ -185,23 +186,7 @@ class Agent:
         critic_loss = critic2_loss + critic1_loss
 
         model_loss += critic_loss
-        
-        self.soft_update(self.model, self.model_target, self.args.tau)
-        
-        
-        
-        # Train alpha
-        if self.args.alpha == None:
-            _, log_pis = self.model.evaluate_actor(hqs[:,:-1].detach())
-            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy))*masks.detach()
-            alpha_loss = alpha_loss.mean() / masks.mean()
-            self.alpha_opt.zero_grad()
-            alpha_loss.backward()
-            self.alpha_opt.step()
-            self.alpha = torch.exp(self.log_alpha) 
-        else:
-            alpha_loss = None
-            
+                    
             
         
         # Train actor
@@ -237,6 +222,21 @@ class Agent:
         self.model_opt.zero_grad()
         model_loss.backward()
         self.model_opt.step()
+        self.soft_update(self.model, self.model_target, self.args.tau)
+        
+
+
+        # Train alpha
+        if self.args.alpha == None:
+            _, log_pis = self.model.evaluate_actor(hqs[:,:-1].detach())
+            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy))*masks.detach()
+            alpha_loss = alpha_loss.mean() / masks.mean()
+            self.alpha_opt.zero_grad()
+            alpha_loss.backward()
+            self.alpha_opt.step()
+            self.alpha = torch.exp(self.log_alpha) 
+        else:
+            alpha_loss = None
         
         
         

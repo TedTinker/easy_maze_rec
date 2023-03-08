@@ -43,17 +43,17 @@ class Model(nn.Module):
             nn.LeakyReLU())
         
         self.pred_o   = nn.Sequential(
-            nn.Linear(args.h_size, obs_size),
-            nn.Sigmoid())
+            nn.Linear(args.h_size, obs_size))
+            #nn.Sigmoid())
         
         self.Q_1      = nn.Sequential(
             nn.Linear(args.h_size + action_size, 1),)
         self.Q_2      = nn.Sequential(
             nn.Linear(args.h_size + action_size, 1))
         
-        self.a = nn.Sequential(
+        self.a        = nn.Sequential(
             nn.Linear(args.h_size, args.h_size))
-        self.a_mu = nn.Linear(args.h_size, action_size)
+        self.a_mu     = nn.Linear(args.h_size, action_size)
         self.a_log_std_linear = nn.Linear(args.h_size, action_size)
         
         self.zp_mu.apply(init_weights)
