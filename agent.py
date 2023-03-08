@@ -90,8 +90,8 @@ class Agent:
         mu_ps = [] ; std_ps = []
         mu_qs = [] ; std_qs = []
         for step in range(steps+1):
-            o = obs[:,step].unsqueeze(1).detach()     
-            prev_a = all_actions[:, step].unsqueeze(1).detach()    
+            o = obs[:,step].unsqueeze(1)
+            prev_a = all_actions[:, step].unsqueeze(1)
             
             zp, mu_p, std_p = self.model.zp_from_hq_tm1(hq)           
             zq, mu_q, std_q = self.model.zq_from_hq_tm1(hq, o, prev_a) 
@@ -146,19 +146,19 @@ class Agent:
         # Train Model
         pred_obs, dkls, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
 
-        obs_errors = F.mse_loss(pred_obs, next_obs.detach(), reduction = "none") # Is this correct? Not "cross entropy"
-        z_errors = dkls
-        errors = torch.cat([obs_errors, z_errors], -1) * masks.detach() # plus complexity?
-        model_loss = errors.mean()
+        obs_errors = F.mse_loss(pred_obs * masks, next_obs * masks, reduction = "none") 
+        z_errors = dkls * masks
+        print("obs errors: {}. z_errors: {}.".format(obs_errors.shape, z_errors.shape))
+        model_loss = obs_errors.sum() + z_errors.sum() 
             
             
         
         # Get curiosity          
-        curiosity = self.args.eta * errors.sum(-1).detach()
+        curiosity = self.args.eta * z_errors.sum(-1)
         if(self.args.curiosity): curiosity = curiosity.unsqueeze(-1)
         else:                    curiosity = torch.zeros(rewards.shape)
         
-        extrinsic = torch.mean(rewards*masks.detach()).item()
+        extrinsic = torch.mean(rewards*masks).item()
         intrinsic_curiosity = curiosity.mean().item()
         print("Rewards: {}. Curiosity: {}.".format(rewards.shape, curiosity.shape))
         rewards += curiosity
@@ -170,18 +170,18 @@ class Agent:
             new_actions, log_pis_next = self.model.evaluate_actor(hqs[:,1:])
             print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
             print("\n\n")
-            Q_target1_next = self.model_target.get_Q_1(hqs[:,1:].detach(), new_actions.detach())
-            Q_target2_next = self.model_target.get_Q_2(hqs[:,1:].detach(), new_actions.detach())
+            Q_target1_next = self.model_target.get_Q_1(hqs[:,1:], new_actions)
+            Q_target2_next = self.model_target.get_Q_2(hqs[:,1:], new_actions)
             Q_target_next = torch.min(Q_target1_next, Q_target2_next)
             print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
             print("\n\n")
             if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
             else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
         
-        Q_1 = self.model.get_Q_1(hqs[:,:-1], actions.detach())
-        critic1_loss = 0.5*F.mse_loss(Q_1*masks.detach(), Q_targets.detach()*masks.detach())
-        Q_2 = self.model.get_Q_2(hqs[:,:-1], actions.detach())
-        critic2_loss = 0.5*F.mse_loss(Q_2*masks.detach(), Q_targets.detach()*masks.detach())
+        Q_1 = self.model.get_Q_1(hqs[:,:-1], actions)
+        critic1_loss = 0.5*F.mse_loss(Q_1*masks, Q_targets*masks)
+        Q_2 = self.model.get_Q_2(hqs[:,:-1], actions)
+        critic2_loss = 0.5*F.mse_loss(Q_2*masks, Q_targets*masks)
         critic_loss = critic2_loss + critic1_loss
 
         model_loss += critic_loss
@@ -193,7 +193,7 @@ class Agent:
         # Train alpha
         if self.args.alpha == None:
             _, log_pis = self.model.evaluate_actor(hqs[:,:-1].detach())
-            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy).detach())*masks.detach()
+            alpha_loss = -(self.log_alpha * (log_pis + self.target_entropy))*masks.detach()
             alpha_loss = alpha_loss.mean() / masks.mean()
             self.alpha_opt.zero_grad()
             alpha_loss.backward()
@@ -219,10 +219,10 @@ class Agent:
             elif self._action_prior == "uniform":
                 policy_prior_log_probs = 0.0
             Q = torch.min(
-                self.model.get_Q_1(hqs[:,:-1].detach(), actions), 
-                self.model.get_Q_2(hqs[:,:-1].detach(), actions)).sum(-1).unsqueeze(-1)
-            intrinsic_entropy = torch.mean((alpha * log_pis)*masks.detach()).item()
-            actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks.detach()
+                self.model.get_Q_1(hqs[:,:-1], actions), 
+                self.model.get_Q_2(hqs[:,:-1], actions)).sum(-1).unsqueeze(-1)
+            intrinsic_entropy = torch.mean((alpha * log_pis)*masks).item()
+            actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks
             actor_loss = actor_loss.mean() / masks.mean()
 
             model_loss += actor_loss 

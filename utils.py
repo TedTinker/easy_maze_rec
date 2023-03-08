@@ -25,8 +25,8 @@ parser.add_argument('--max_steps',          type=int,   default = 10)
 parser.add_argument('--wall_punishment',    type=int,   default = -1)
 
 # Module 
-parser.add_argument('--h_size',             type=int,   default = 16)
-parser.add_argument('--z_size',             type=int,   default = 8)
+parser.add_argument('--h_size',             type=int,   default = 32)
+parser.add_argument('--z_size',             type=int,   default = 32)
 parser.add_argument('--model_lr',           type=float, default = .01)
 parser.add_argument('--alpha_lr',           type=float, default = .01) 
 
