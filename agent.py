@@ -98,10 +98,9 @@ class Agent:
             hq = self.model.h(zq, hq)    
 
             hqs.append(hq)
-            if(step != steps):
-                mu_qs.append(mu_q) ; std_qs.append(std_q)
-                mu_ps.append(mu_p) ; std_ps.append(std_p) 
-                pred_obs.append(self.model.predict_o(hq))       
+            mu_qs.append(mu_q) ; std_qs.append(std_q)
+            mu_ps.append(mu_p) ; std_ps.append(std_p) 
+            pred_obs.append(self.model.predict_o(hq))       
                 
         hqs = torch.cat(hqs, -2)
         mu_ps = torch.cat(mu_ps, -2) ; std_ps = torch.cat(std_ps, -2)
@@ -110,10 +109,10 @@ class Agent:
                 
         dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
 
-        #print("\n\n")
-        #print("hqs:\t{}.\nnext obs:\t{}.\npred obs:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
-        #    hqs[:,1:].shape, obs[:,1:].shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
-        #print("\n\n")
+        print("\n\n")
+        print("hqs:\t{}.\nobs:\t{}.\npred:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
+            hqs.shape, obs.shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
+        print("\n\n")
         return(pred_obs, dkls, hqs)
             
             
@@ -128,26 +127,22 @@ class Agent:
         self.steps += 1
 
         obs, actions, rewards, dones, masks = self.memory.sample(batch_size)
-        
         batch_size = rewards.shape[0] ; steps = rewards.shape[1]
-        
-        next_obs = obs[:,1:]
-        
+        all_masks = torch.cat([torch.ones(masks[:,0].unsqueeze(1).shape), masks], dim = 1)
         all_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions], dim = 1)
-        prev_actions = all_actions[:,:-1]
         
-        #print("\n\n")
-        #print("obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
-        #    obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
-        #print("\n\n")
+        print("\n\n")
+        print("obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
+            obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
+        print("\n\n")
                 
         
         
         # Train Model
         pred_obs, dkls, hqs = self.learning_phase(batch_size, steps, obs, all_actions)
 
-        obs_errors = F.binary_cross_entropy_with_logits(pred_obs, next_obs, reduction = "none") * masks
-        z_errors = dkls * masks
+        obs_errors = F.binary_cross_entropy_with_logits(pred_obs, obs, reduction = "none") * all_masks
+        z_errors = dkls * all_masks
         #print("obs errors: {}. z_errors: {}.".format(obs_errors.shape, z_errors.shape))
         errors = torch.concat([obs_errors, z_errors], -1)
         model_loss = errors.sum()
@@ -155,7 +150,7 @@ class Agent:
             
         
         # Get curiosity          
-        curiosity = self.args.eta * errors.sum(-1)
+        curiosity = self.args.eta * errors[:,1:].sum(-1)
         if(self.args.curiosity): curiosity = curiosity.unsqueeze(-1)
         else:                    curiosity = torch.zeros(rewards.shape)
         
@@ -180,10 +175,10 @@ class Agent:
             else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
         
         Q_1 = self.model.get_Q_1(hqs[:,:-1], actions)
-        critic1_loss = 0.5*F.mse_loss(Q_1*masks, Q_targets*masks)
+        critic1_loss = 0.5*F.mse_loss(Q_1, Q_targets, reduction = "none") * masks
         Q_2 = self.model.get_Q_2(hqs[:,:-1], actions)
-        critic2_loss = 0.5*F.mse_loss(Q_2*masks, Q_targets*masks)
-        critic_loss = critic2_loss + critic1_loss
+        critic2_loss = 0.5*F.mse_loss(Q_2, Q_targets, reduction = "none") * masks
+        critic_loss = critic2_loss.sum() + critic1_loss.sum()
 
         model_loss += critic_loss
                     
@@ -244,8 +239,8 @@ class Agent:
         z_loss = z_errors.sum().item()
         if(alpha_loss != None): alpha_loss = alpha_loss.item()
         if(actor_loss != None): actor_loss = actor_loss.item()
-        if(critic1_loss != None): critic1_loss = critic1_loss.item()
-        if(critic2_loss != None): critic2_loss = critic2_loss.item()
+        if(critic1_loss != None): critic1_loss = critic1_loss.sum().item()
+        if(critic2_loss != None): critic2_loss = critic2_loss.sum().item()
         losses = np.array([[obs_loss, z_loss, alpha_loss, actor_loss, critic1_loss, critic2_loss]])
         
         return(losses, extrinsic, intrinsic_curiosity, intrinsic_entropy)
