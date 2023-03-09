@@ -171,12 +171,12 @@ class Agent:
             Q_target_next = torch.min(Q_target1_next, Q_target2_next).detach()
             #print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
             #print("\n\n")
-            if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
-            else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
+            if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * masks * (Q_target_next - self.alpha * log_pis_next))
+            else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * masks * (Q_target_next - self.args.alpha * log_pis_next))
         
         Q_1 = self.model.get_Q_1(hqs[:,:-1], actions)
-        critic1_loss = 0.5*F.mse_loss(Q_1, Q_targets, reduction = "none") * masks
         Q_2 = self.model.get_Q_2(hqs[:,:-1], actions)
+        critic1_loss = 0.5*F.mse_loss(Q_1, Q_targets, reduction = "none") * masks
         critic2_loss = 0.5*F.mse_loss(Q_2, Q_targets, reduction = "none") * masks
         critic_loss = critic2_loss.sum() + critic1_loss.sum()
 
@@ -189,18 +189,18 @@ class Agent:
             if self.args.alpha == None: alpha = self.alpha 
             else:                       
                 alpha = self.args.alpha
-            actions, log_pis = self.model.evaluate_actor(hqs[:,:-1])
+            new_actions, log_pis = self.model.evaluate_actor(hqs[:,:-1])
 
             if self._action_prior == "normal":
                 loc = torch.zeros(self.action_size, dtype=torch.float64)
                 scale_tril = torch.tensor([[1, 0], [1, 1]], dtype=torch.float64)
                 policy_prior = MultivariateNormal(loc=loc, scale_tril=scale_tril)
-                policy_prior_log_probs = policy_prior.log_prob(actions).unsqueeze(-1)
+                policy_prior_log_probs = policy_prior.log_prob(new_actions).unsqueeze(-1)
             elif self._action_prior == "uniform":
                 policy_prior_log_probs = 0.0
             Q = torch.min(
-                self.model.get_Q_1(hqs[:,:-1], actions), 
-                self.model.get_Q_2(hqs[:,:-1], actions)).sum(-1).unsqueeze(-1)
+                self.model.get_Q_1(hqs[:,:-1], new_actions)*masks, 
+                self.model.get_Q_2(hqs[:,:-1], new_actions)*masks).sum(-1).unsqueeze(-1)
             intrinsic_entropy = torch.mean((alpha * log_pis)*masks).item()
             actor_loss = (alpha * log_pis - policy_prior_log_probs - Q)*masks
             actor_loss = actor_loss.mean() / masks.mean()
