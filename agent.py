@@ -67,7 +67,6 @@ class Agent:
             while(done == False):
                 steps += 1
                 o = t_maze.obs()      
-                if(verbose): print(o)
                 
                 hp = self.model.h(zp, hq) 
                 zp, _, _ = self.model.zp_from_hq_tm1(hq)          
