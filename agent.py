@@ -54,7 +54,7 @@ class Agent:
     
     
     
-    def interaction_with_environment(self, push = True, verbose = True):
+    def interaction_with_environment(self, push = True, verbose = False):
         done = False
         t_maze = T_Maze()
         steps = 0
@@ -63,7 +63,7 @@ class Agent:
             zp = torch.normal(0, 1, (1, 1, self.args.z_size))                         
             a  = torch.zeros((1, action_size))
             if(verbose): print("\n\nNew Episode!\n\n")
-            if(verbose): print(t_maze)
+            if(verbose): print("{}\n\n{}".format(t_maze, t_maze.obs_str()))
             while(done == False):
                 steps += 1
                 o = t_maze.obs()      
@@ -110,10 +110,10 @@ class Agent:
                 
         dkls = dkl(mu_qs, std_qs, mu_ps, std_ps) 
 
-        print("\n\n")
-        print("hqs:\t{}.\nnext obs:\t{}.\npred obs:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
-            hqs[:,1:].shape, obs[:,1:].shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
-        print("\n\n")
+        #print("\n\n")
+        #print("hqs:\t{}.\nnext obs:\t{}.\npred obs:\t{}.\nmu_ps:\t{}.\nstd_ps:\t{}.\nmu_qs:\t{}.\nstd_qs:\t{}.\ndkls:\t{}.".format(
+        #    hqs[:,1:].shape, obs[:,1:].shape, pred_obs.shape, mu_ps.shape, std_ps.shape, mu_qs.shape, std_qs.shape, dkls.shape))
+        #print("\n\n")
         return(pred_obs, dkls, hqs)
             
             
@@ -136,10 +136,10 @@ class Agent:
         all_actions = torch.cat([torch.zeros(actions[:,0].unsqueeze(1).shape), actions], dim = 1)
         prev_actions = all_actions[:,:-1]
         
-        print("\n\n")
-        print("obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
-            obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
-        print("\n\n")
+        #print("\n\n")
+        #print("obs:\t{}.\nactions:\t{}.\nrewards:\t{}.\ndones:\t{}.\nmasks:\t{}.".format(
+        #    obs.shape, actions.shape, rewards.shape, dones.shape, masks.shape))
+        #print("\n\n")
                 
         
         
@@ -148,7 +148,7 @@ class Agent:
 
         obs_errors = F.binary_cross_entropy_with_logits(pred_obs, next_obs, reduction = "none") * masks
         z_errors = dkls * masks
-        print("obs errors: {}. z_errors: {}.".format(obs_errors.shape, z_errors.shape))
+        #print("obs errors: {}. z_errors: {}.".format(obs_errors.shape, z_errors.shape))
         errors = torch.concat([obs_errors, z_errors], -1)
         model_loss = errors.sum()
             
@@ -161,7 +161,7 @@ class Agent:
         
         extrinsic = torch.mean(rewards*masks).item()
         intrinsic_curiosity = curiosity.mean().item()
-        print("Rewards: {}. Curiosity: {}.".format(rewards.shape, curiosity.shape))
+        #print("Rewards: {}. Curiosity: {}.".format(rewards.shape, curiosity.shape))
         rewards += curiosity
         
                 
@@ -169,13 +169,13 @@ class Agent:
         # Train critics
         with torch.no_grad():
             new_actions, log_pis_next = self.model.evaluate_actor(hqs[:,1:])
-            print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
-            print("\n\n")
+            #print("new actions: {}. log_pis: {}.".format(new_actions.shape, log_pis_next.shape))
+            #print("\n\n")
             Q_target1_next = self.model_target.get_Q_1(hqs[:,1:], new_actions)
             Q_target2_next = self.model_target.get_Q_2(hqs[:,1:], new_actions)
             Q_target_next = torch.min(Q_target1_next, Q_target2_next).detach()
-            print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
-            print("\n\n")
+            #print("Q_target_next: {}. rewards: {}. dones: {}.".format(Q_target_next.shape, rewards.shape, dones.shape))
+            #print("\n\n")
             if self.args.alpha == None: Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.alpha * log_pis_next))
             else:                       Q_targets = rewards + (self.args.GAMMA * (1 - dones) * (Q_target_next - self.args.alpha * log_pis_next))
         

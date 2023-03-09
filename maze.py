@@ -83,9 +83,7 @@ action_size = 2
     
 if __name__ == "__main__":        
 
-    print(t_maze)
-    print("")
-    print(t_maze.obs_str())
+    print("{}\n\n{}".format(t_maze, t_maze.obs_str()))
     
     actions = [[1,0], [0,1], [-1,0]]
     for action in actions:
