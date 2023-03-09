@@ -47,6 +47,8 @@ class T_Maze:
                     if(type(spot.exit_reward) == tuple): reward = choice(spot.exit_reward)
                     else:                                reward = spot.exit_reward
         if(verbose): print("\n{}\n".format(self))
+        if(verbose): print("Reward: {}. Spot type: {}. Done: {}.".format(reward, spot_name, done))
+        if(verbose): print(t_maze.obs())
         return(reward, spot_name, done)    
     
     def __str__(self):
@@ -74,12 +76,7 @@ if __name__ == "__main__":
     
     actions = [[1,0], [0,1], [-1,0]]
     for action in actions:
-        reward, name, done = t_maze.action(action[0], action[1])
-        print("\n\n\n")
-        print("Action: {}.".format(action), "\n") 
-        print(t_maze)
-        print("Reward: {}. Exit type: {}. Done: {}.".format(reward, name, done))
-        print(t_maze.obs())
+        reward, name, done = t_maze.action(action[0], action[1], verbose = True)
 
 
 # %%
